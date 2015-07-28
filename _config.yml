@@ -1,12 +1,12 @@
 # Site settings
-title: Your awesome title
-email: your-email@domain.com
+title: Aprendizaje Estadístico 2015
+email: felipexgonzalez@gmail.com
 description: > # this means to ignore newlines until "baseurl:"
   Material para el curso de aprendizaje estadístico 2015, ITAM
-baseurl: /aprendizaje_estadistico_2015 # the subpath of your site, e.g. /blog/
+baseurl: /aprendizaje-estadistico-2015 # the subpath of your site, e.g. /blog/
 url: "http://felipegonzalez.github.io" # the base hostname & protocol for your site
-twitter_username: jekyllrb
-github_username:  jekyll
+twitter_username: felipexgonzalez
+github_username:  felipegonzalez
 
 # Build settings
-markdown: kramdown
+markdown: redcarpet
