@@ -1,0 +1,136 @@
+---
+title: "Ajuste de curvas y predicción"
+author: "Felipe Gonzalez"
+output: html_document
+---
+
+
+
+```{r setup, include = FALSE}
+library(knitr)
+library(ggplot2)
+library(dplyr)
+library(tidyr)
+options(digits=2)
+```
+
+
+```{r }
+set.seed(28) 
+sd.modelo <- 1
+x <- seq(from = 0, to = 1, length.out = 10)
+y <- sin(2*pi*x) + cos(2*pi*x) + rnorm(length(x), mean = 0, sd = sd.modelo)
+datos <- data.frame(x, y)
+datos
+```
+
+Graficamos la función $f(x)$ *real* y los datos de entrenamiento
+
+```{r }
+x.plot <- seq(0,1,0.01)
+y.plot <- sin(2*pi*x.plot) + cos(2*pi*x.plot)
+graf.1 <- qplot(x,y) + 
+    annotate("line", x=x.plot, y=y.plot, linetype="dotted")
+graf.1
+```
+
+
+```{r }
+ajuste.mod <- function(datos, m){
+  lm(y ~ poly(x, degree=m, raw = TRUE), data = datos)
+}
+modelos <- lapply(1:9, function(i) ajuste.mod(datos, i))
+modelos[[1]]
+modelos[[3]]
+modelos[[7]]
+```
+
+Ahora graficaremos para ver qué modelos ajustamos y cómo van a ser sus predicciones. Nótese que tanto el modelo lineal como el modelo de grado 8 ajustan mal, por diferentes razones.
+
+
+```{r }
+datos.graf.l <- lapply(1:9, function(i){
+   df <- data.frame(grado = i,  x=x.plot , 
+        prediccion = predict(modelos[[i]], newdata = data.frame(x=x.plot)),
+        esperado = y.plot)
+    df   
+})
+datos.graf <- rbind_all(datos.graf.l)
+
+datos.graf.m <- datos.graf %>% gather(variable, valor, prediccion:esperado)
+graf.2 <- ggplot(datos.graf.m, aes(x=x, y=valor, linetype=variable )) + 
+    geom_line() +
+    facet_wrap(~grado) 
+graf.2.1 <- graf.2 + annotate("point",x=datos$x, y=datos$y, colour="black")
+graf.2.1
+```
+
+
+
+```{r }
+errores.entrenamiento <- sapply(modelos, function(mod){ 
+    ajustados.entrenamiento <- fitted(mod)
+    sqrt(mean( (y - ajustados.entrenamiento)^2))
+    })
+errores.entrenamiento
+```
+
+
+```{r }
+xp <- rep(x,500)
+yp <-  sin(2*pi*xp) + cos(2*pi*xp) +  rnorm(length(xp), mean = 0, sd = sd.modelo)
+errores.prueba <- sapply(modelos, function(mod){
+    ajustados.prueba <- predict(mod, newdata = data.frame(x=xp))
+    sqrt(mean( (yp - ajustados.prueba )^2))
+    })
+errores.prueba
+```
+
+Graficamos para 
+
+```{r }
+errores <- data.frame(grado=1:9, entrenamiento=errores.entrenamiento, 
+    prueba = errores.prueba)
+errores.m <- errores %>% gather(var, valor, entrenamiento:prueba)
+graf.3 <- ggplot(errores.m, aes(x=grado, y=valor, linetype=var)) + geom_point()+
+    geom_line() + ylab("Error")
+graf.3
+```
+
+En esta última gráfica vemos un patrón que resultará ser usual: modelos demasiado rígidos (en este caso de grado bajo) no capturan señal en los datos y por lo tanto son malos en la predicción, mientras que modelos demasiado flexibles (grado alto en este caso) sobreajustan a los datos, y también son malos en la predicción. Sin embargo, modelos más complejos siempre ajustan mejor a los datos de entrenamiento que modelos más simples (el error de entrenamiento siempre disminuye cuando aumentamos complejidad).
+Nótese que esta evaluación de los modelos ajustados sólo utiliza una *muestra de entrenamiento* y luego una sola *muestra de prueba*. Como ejercicio adicional, podemos preguntarnos cómo se comportan nuestros modelos ajustados en promedio sobre nuevas muestras generadas por el fenómeno que nos interesa. Abajo muestreamos 500 veces entrenamiento y prueba exactamente como hicimos arriba, y promediamos los errores.
+
+```{r }
+salida.sim.lista <- lapply(1:500, function(x){
+    xp <- seq(from = 0, to = 1, length.out = 10)
+    yp <- sin(2*pi*xp) + cos(2*pi*xp) + rnorm(length(xp), mean = 0, sd = sd.modelo)
+    datos <- data.frame(xp, yp)
+    modelos <- lapply(1:9, function(m){
+            mod <- lm(yp ~ poly(xp, degree=m, raw = TRUE), data = datos)
+        mod
+    })
+    errores.entrenamiento <- sapply(modelos, function(mod){ 
+        ajustados.entrenamiento <- fitted(mod)
+        sqrt(mean( (yp - ajustados.entrenamiento)^2))
+    })
+    y <- sin(2*pi*xp)+cos(2*pi*xp) + rnorm(length(xp), mean = 0, sd = sd.modelo)
+    errores.prueba <- sapply(modelos, function(mod){
+        ajustados.prueba <- fitted(mod)
+        sqrt(mean( (y - ajustados.prueba )^2))
+    })
+   data.frame(grado = 1:9, errores.entrenamiento, errores.prueba)
+})
+salida.sim <- rbind_all(salida.sim.lista)
+
+resumen.sim <- salida.sim %>% group_by(grado) %>%
+  summarise(error.prueba=mean(errores.prueba), error.entrena = mean(errores.entrenamiento)) %>%
+  gather(variable, value, -grado)
+  
+ggplot(resumen.sim,
+     aes(x=grado, y=value, col=variable, group=variable)) + geom_line() +
+    geom_point()
+```
+
+En esta gráfica vemos también el patrón que observamos arriba.
+
+
