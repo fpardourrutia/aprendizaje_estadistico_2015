@@ -1,14 +1,9 @@
----
-layout: page
-title: Acerca del curso
-permalink: /temario/
----
- 
+
+
 El Aprendizaje Estadístico trata de cómo aprender de conjuntos de datos: cómo predecir y estimar cantidades importantes o qué patrones interesantes se pueden descubrir en ellos. En este curso estudiaremos tanto los fundamentos teóricos como aspectos prácticos de su aplicación.
 
 
-### Temario 
-- Introducción al aprendizaje estadístico.
+### Temas 
 - Métodos lineales para problemas de regresión, regularización.
 - Métodos lineales para problemas de clasificación, regularización.
 - Extensiones de modelos lineales.
