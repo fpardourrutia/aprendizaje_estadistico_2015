@@ -1,0 +1,133 @@
+---
+title: "Introducción - ejemplos"
+author: "Felipe Gonzalez"
+date: "August 11, 2014"
+output: html_document
+---
+
+
+### Reconocimiento de dígitos
+
+```{r, message=FALSE}
+library(dplyr)
+library(tidyr)
+library(ggplot2)
+library(ElemStatLearn)
+source('lib/graficar_digitos.R')
+```
+
+Consideramos imágenes escaneadas de dígitos escritos a mano, procesadas
+a 16x16 pixeles.
+
+```{r, fig.width=10, fig.height=3}
+zip.train <- data.frame(zip.train)
+muestra.1 <- zip.train %>% sample_n(10)
+graficar.digitos(muestra.1)
+```
+
+```{r, fig.width=10, fig.height=3}
+muestra.1 <- zip.train %>% sample_n(10)
+graficar.digitos(muestra.1)
+```
+
+ Los 16x16=256 están escritos acomodando las filas de la imagen en 
+ vector de 256 valores (cada renglón de `zip.train`):
+
+```{r}
+dim(zip.train)
+#un renglón
+x <- as.numeric(zip.train[3,2:257])
+x
+zip.train[3,1]
+```
+
+
+
+
+ Podemos reducir dimensionalidad y graficar las dos primeras componentes
+ principales (un tipo de proyección de el espacio de dimensión 256 donde 
+ está cada dígito a un espacio de dimensión 2):
+
+```{r}
+comps.1 <- prcomp(zip.train[, 2:257])
+dat.comp <- data.frame(comps.1$x[, 1:2], digito = zip.train[, 1])
+```
+
+Vemos (ver siguiente gráfica) que con las dos componentes principales no vamos 
+a separar muy bien a los dígitos (hay nubes que se intersectan
+en gran parte). ¿Qué otro tipo de clasificación podríamos usar?
+
+```{r}
+ggplot(dat.comp, aes(x = PC1, y = PC2)) +
+    facet_wrap(~digito) + geom_vline(xintercept = 0, col ="salmon") +
+    geom_hline(yintercept = 0, col="salmon") +
+    geom_point(alpha=0.2) 
+```
+
+### Clasificación de spam
+
+
+Para cada mail, en la etapa de preprocesamiento, se cuenta 
+la frecuencia de ocurrencia de ciertas palabras o símbolos:
+
+
+```{r}
+spam.train <- read.csv(file = '../../datos/spam_train.csv')
+dim(spam.train)
+names(spam.train) <- c("wfmake", "wfaddress", "wfall", "wf3d", "wfour",
+  "wfover", "wfremove", "wfinternet", "wforder", "wfmail", 
+  "wfreceive", "wfwill", "wfpeople", "wfreport", "wfaddresses", 
+	"wffree", "wfbusiness", "wfemail", "wfyou", "wfcredit", "wfyour", 
+	"wffont", "wf000", "wfmoney", "wfhp", "wfhpl", "wfgeorge", "wf650", 
+	"wflab", "wflabs", "wftelnet", "wf857", "wfdata", "wf415", "wf85", 
+	"wftechnology", "wf1999", "wfparts", "wfpm", "wfdirect", "wfcs", 
+	"wfmeeting", "wforiginal", "wfproject", "wfre", "wfedu", "wftable", 
+	"wfconference", "cfsc", "cfpar", "cfbrack", "cfexc", "cfdollar", 
+	"cfpound", "crlaverage", "crllongest", "crltotal", "spam")
+head(spam.train)
+spam %>% group_by(spam) %>% tally
+```
+Frecuencias para las primeras 35 características, promediadas sobre
+los spams y los no spams:
+
+```{r}
+frec.terminos <- spam.train %>% 
+  gather(termino, frec, wfmake:crltotal) %>%
+  group_by(spam, termino) %>%
+  summarise(media.frec = mean(frec))
+frec.terminos
+```
+
+```{r, fig.height=8}
+ggplot(frec.terminos, aes(x = termino, y = media.frec, colour=factor(spam))) + 
+    geom_point() + coord_flip() +
+    ylab("Promedio de frecuencia de ocurrencia") + scale_y_log10()
+```
+
+¿Qué reglas de clasificación podemos usar? Esta es una regla simple: 
+clasificar como spam si tiene signos de exclamación y la palabra 'free'. 
+Clasificar como spam si no
+
+ Clasificados como Spam
+```{r}
+regla.spam <- spam.train$cfexc > 0 & spam.train$wffree > 0
+tab.1 <- table(spam.train$spam[regla.spam])
+tab.1
+```
+
+Falsos positivos: 11%
+
+```{r}
+round(prop.table(tab.1),2)
+```
+Clasificados como No spam
+```{r}
+tab.2 <- table(spam.train$spam[!regla.spam])
+tab.2
+round(prop.table(tab.2),2)
+```
+
+Falsos negativos: 26%
+Los errores son muy altos. ¿Cómo mejorar?
+```
+
