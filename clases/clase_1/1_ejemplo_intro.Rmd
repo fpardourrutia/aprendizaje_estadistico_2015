@@ -1,8 +1,10 @@
 ---
 title: "Introducción - ejemplos"
-author: "Felipe Gonzalez"
-date: "August 11, 2014"
-output: html_document
+author: "Felipe González"
+date: Otoño 2015
+output: 
+  html_document: 
+    theme: united
 ---
 
 
@@ -13,56 +15,63 @@ library(dplyr)
 library(tidyr)
 library(ggplot2)
 library(ElemStatLearn)
-source('lib/graficar_digitos.R')
+graficar_digitos <- function(datos){
+  mat_digitos <- lapply(1:nrow(datos), 
+	                         function(x){ 
+                            	t(matrix(as.numeric(datos[x, 2:257]), 
+                            	         16, 16, byrow = T))[,16:1]
+                             })
+	image (z = Reduce("rbind", mat_digitos), col = terrain.colors(30))
+	text(seq(0,1,1/10) + 0.05, 0.05, label = datos[, 1], cex = 1.5)
+}
+
 ```
 
 Consideramos imágenes escaneadas de dígitos escritos a mano, procesadas
 a 16x16 pixeles.
 
 ```{r, fig.width=10, fig.height=3}
-zip.train <- data.frame(zip.train)
-muestra.1 <- zip.train %>% sample_n(10)
-graficar.digitos(muestra.1)
+zip_train <- data.frame(zip.train)
+muestra <- zip_train %>% sample_n(10)
+graficar_digitos(muestra)
 ```
 
 ```{r, fig.width=10, fig.height=3}
-muestra.1 <- zip.train %>% sample_n(10)
-graficar.digitos(muestra.1)
+muestra <- zip_train %>% sample_n(10)
+graficar_digitos(muestra)
 ```
 
- Los 16x16=256 están escritos acomodando las filas de la imagen en 
- vector de 256 valores (cada renglón de `zip.train`):
+Los 16x16=256 están escritos acomodando las filas de la imagen en 
+vector de 256 valores (cada renglón de `zip.train`):
 
 ```{r}
-dim(zip.train)
+dim(zip_train)
 #un renglón
-x <- as.numeric(zip.train[3,2:257])
+x <- as.numeric(zip_train[3,2:257])
 x
-zip.train[3,1]
+zip_train[3,1]
 ```
 
 
+¿Podemos reconocer los distintos patrones de los dígitos de manera
+automática? Nos gustaría poder "ver" en el espacio de dimensión 256 y reconocer
+los distintos grupos que forman los distintos dígitos, si es que existe. Podemos
+intentar mapear a un espacio de dimensión baja (2), intentando preservar la estructura
+local de los datos. En este caso intentamos con [t-sne](https://www.youtube.com/watch?v=RJVL80Gg3lA&list=UUtXKDgv1AVoG88PLl8nGXmw):
 
 
- Podemos reducir dimensionalidad y graficar las dos primeras componentes
- principales (un tipo de proyección de el espacio de dimensión 256 donde 
- está cada dígito a un espacio de dimensión 2):
 
 ```{r}
-comps.1 <- prcomp(zip.train[, 2:257])
-dat.comp <- data.frame(comps.1$x[, 1:2], digito = zip.train[, 1])
+library(tsne)
+set.seed(288022)
+muestra_dig <- zip_train %>% sample_n(500)
+tsne_digitos <- tsne(muestra_dig[,2:257], perplexity = 30, max_iter = 500, initial_dims = 15)
+dat_tsne <- data.frame(tsne_digitos)
+dat_tsne$digito <- as.character(muestra_dig$X1)
+ggplot(dat_tsne, aes(x=X1, y=X2, colour=digito, label=digito)) + geom_text()
 ```
 
-Vemos (ver siguiente gráfica) que con las dos componentes principales no vamos 
-a separar muy bien a los dígitos (hay nubes que se intersectan
-en gran parte). ¿Qué otro tipo de clasificación podríamos usar?
 
-```{r}
-ggplot(dat.comp, aes(x = PC1, y = PC2)) +
-    facet_wrap(~digito) + geom_vline(xintercept = 0, col ="salmon") +
-    geom_hline(yintercept = 0, col="salmon") +
-    geom_point(alpha=0.2) 
-```
 
 ### Clasificación de spam
 
@@ -72,7 +81,7 @@ la frecuencia de ocurrencia de ciertas palabras o símbolos:
 
 
 ```{r}
-spam.train <- read.csv(file = '../../datos/spam_train.csv')
+spam.train <- read.csv(file = '../../datos/spam/spam_train.csv')
 dim(spam.train)
 names(spam.train) <- c("wfmake", "wfaddress", "wfall", "wf3d", "wfour",
   "wfover", "wfremove", "wfinternet", "wforder", "wfmail", 
@@ -95,13 +104,20 @@ frec.terminos <- spam.train %>%
   gather(termino, frec, wfmake:crltotal) %>%
   group_by(spam, termino) %>%
   summarise(media.frec = mean(frec))
-frec.terminos
+indices <- frec.terminos %>% 
+  group_by(termino) %>%
+  mutate(media.gral = mean(media.frec)) %>%
+  mutate(indice = media.frec/media.gral) %>%
+  filter(spam == 1) %>%
+  select(termino, indice)
+frec.terminos <- frec.terminos %>%
+  left_join(indices)
 ```
 
 ```{r, fig.height=8}
-ggplot(frec.terminos, aes(x = termino, y = media.frec, colour=factor(spam))) + 
+ggplot(frec.terminos, aes(x = reorder(termino,indice), y = media.frec, colour=factor(spam))) + 
     geom_point() + coord_flip() +
-    ylab("Promedio de frecuencia de ocurrencia") + scale_y_log10()
+    ylab("Promedio de frecuencia de ocurrencia") + scale_y_log10() 
 ```
 
 ¿Qué reglas de clasificación podemos usar? Esta es una regla simple: 
