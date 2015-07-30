@@ -28,8 +28,9 @@ def subir_dropbox(archivo):
 
 def crear_post(liga, titulo = 'post'):
     ahora = datetime.datetime.now()
+
     posts_dir = '/Users/felipegonzalez/Repositorios/sitio_aprendizaje_estadistico_2015/_posts/'
-    filename = str(ahora.year)+'-'+str(ahora.month)+'-'+str(ahora.day)+'-'+titulo+'.markdown'
+    filename = str(ahora.year)+'-'+str(ahora.month).zfill(2)+'-'+str(ahora.day).zfill(2)+'-'+titulo+'.markdown'
     print 'Crear post: ' + posts_dir+filename
 
     if os.path.exists(posts_dir + filename):
