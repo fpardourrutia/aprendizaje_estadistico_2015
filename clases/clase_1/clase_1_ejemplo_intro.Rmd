@@ -75,15 +75,24 @@ ggplot(dat_tsne, aes(x=X1, y=X2, colour=digito, label=digito)) + geom_text()
 
 ### Clasificación de spam
 
+Supongamos que queremos separar emails de spam de los que no lo son.
+Una primera idea es que esto podemos decidirlo adecuadamente considerando
+las palabras que contienen los correos (por ejemplo si contiene la palabra free o no,
+etc.).
 
-Para cada mail, en la etapa de preprocesamiento, se cuenta 
-la frecuencia de ocurrencia de ciertas palabras o símbolos:
+Consideramos unos datos que ya han sido preprocesados. Se procesa mail por mail: se separan
+en palabras (tokens), se cuentan las palabras distintas, y luego seleccionamos aquellas
+que ocurren en el conteo total un mínimo de veces.
 
+Por ejemplo, los datos de [spambase](https://archive.ics.uci.edu/ml/datasets/Spambase) ya están
+preprocesados. 
+
+Cada línea representa un correo:
 
 ```{r}
-spam.train <- read.csv(file = '../../datos/spam/spam_train.csv')
-dim(spam.train)
-names(spam.train) <- c("wfmake", "wfaddress", "wfall", "wf3d", "wfour",
+spam_train <- read.csv(file = '../../datos/spam/spam_train.csv')
+dim(spam_train)
+names(spam_train) <- c("wfmake", "wfaddress", "wfall", "wf3d", "wfour",
   "wfover", "wfremove", "wfinternet", "wforder", "wfmail", 
   "wfreceive", "wfwill", "wfpeople", "wfreport", "wfaddresses", 
 	"wffree", "wfbusiness", "wfemail", "wfyou", "wfcredit", "wfyour", 
@@ -93,54 +102,141 @@ names(spam.train) <- c("wfmake", "wfaddress", "wfall", "wf3d", "wfour",
 	"wfmeeting", "wforiginal", "wfproject", "wfre", "wfedu", "wftable", 
 	"wfconference", "cfsc", "cfpar", "cfbrack", "cfexc", "cfdollar", 
 	"cfpound", "crlaverage", "crllongest", "crltotal", "spam")
-head(spam.train)
-spam %>% group_by(spam) %>% tally
+head(spam_train)
+```
+
+Las frecuencias de ocurrencia están divididas entre el número total de palabras
+y multiplicadas por 100 (son porcentajes). La última columna indica si el correo es spam o no: 
+
+```{r}
+spam_train %>% group_by(spam) %>% tally
 ```
 Frecuencias para las primeras 35 características, promediadas sobre
 los spams y los no spams:
 
 ```{r}
-frec.terminos <- spam.train %>% 
+frec_terminos <- spam_train %>% 
   gather(termino, frec, wfmake:crltotal) %>%
   group_by(spam, termino) %>%
-  summarise(media.frec = mean(frec))
-indices <- frec.terminos %>% 
+  summarise(media_frec = mean(frec))
+indices <- frec_terminos %>% 
   group_by(termino) %>%
-  mutate(media.gral = mean(media.frec)) %>%
-  mutate(indice = media.frec/media.gral) %>%
+  mutate(media_gral = mean(media_frec)) %>%
+  mutate(indice = media_frec/media_gral) %>%
   filter(spam == 1) %>%
   select(termino, indice)
-frec.terminos <- frec.terminos %>%
+frec_terminos <- frec_terminos %>%
   left_join(indices)
 ```
 
 ```{r, fig.height=8}
-ggplot(frec.terminos, aes(x = reorder(termino,indice), y = media.frec, colour=factor(spam))) + 
+ggplot(frec_terminos, aes(x = reorder(termino,indice), y = media_frec, colour=factor(spam))) + 
     geom_point() + coord_flip() +
     ylab("Promedio de frecuencia de ocurrencia") + scale_y_log10() 
 ```
 
-¿Qué reglas de clasificación podemos usar? Esta es una regla simple: 
+Ordenamos las palabras según la diferencia de frecuencia entre spams y no spams.
+
+
+¿Qué reglas de clasificación podemos usar? Podemos considerar primero una
+regla simple, donde nos fijamos primero si contiene la palabra
+"remove":
+
+```{r}
+spam_train %>% group_by(wfremove>0, spam) %>% tally %>%
+  group_by(`wfremove > 0`) %>% mutate(prop = round(n/sum(n),2))
+```
+
+Aquí vemos que entro de el grupo que contiene la palabra remove, la proporción
+de mail de spam es mucho más alta que en el grupo que no contiene. Nuestra primera regla
+podría ser entonces: si contiene la palabra remove, probablemente es spam. Sin embargo,
+si no la contiene, entonces no está tan claro. Para averiguar esto tenemos
+que concentrarnos en el grupo de correos que no contiene la palabra "remove". Por ejemplo,
+¿será que las veces que ocurre remove nos ayuda? Parece que no nos va ayudar:
+
+
+```{r}
+ggplot(filter(spam_train, wfremove==0),
+       aes(x=wfremove, group=spam, colour=as.character(spam))) + geom_density(adjust = 0.5)
+```
+
+¿Qué tal la frecuencia de ocurrencia de la palabra george?
+
+```{r}
+ggplot(filter(spam_train, wfremove==0),
+       aes(x=0.001+ wfgeorge, group=spam, fill=as.character(spam))) + geom_histogram() +
+  scale_x_log10()
+```
+
+Vemos que si cortamos
+
+```{r}
+grupo <- filter(spam_train, wfremove == 0)
+grupo %>% group_by(wfgeorge>1, spam) %>% tally %>%
+  group_by(`wfgeorge > 1`) %>% mutate(prop = round(n/sum(n),2))
+```
+
+Ahora seguimos buscando, pero en el grupo
+```{r}
+grupo_nuevo <- filter(spam_train, wfremove == 0, wfgeorge <= 1)
+nrow(grupo_nuevo)
+
+```
+
+Podríamos por ejemplo intentar:
+```{r}
+grupo_nuevo %>% group_by(cfdollar > 0.1, spam) %>% tally %>%
+  group_by(`cfdollar > 0.1`) %>% mutate(prop = round(n/sum(n),2))
+```
+
+En resumen, hemos logrado algo como
+
+```{r}
+library(DiagrammeR)
+grViz(" digraph {
+  graph [overlap = true]
+  node [shape = box, fontname = Helvetica, color = blue]
+  edge [color = green]
+  A [label ='wfremove > 0 \n spam 39%']
+  B [label ='wfgeorge > 1 \n spam 28%']
+  C [label = 'cfdollar > 0.1 \n spam 32%']
+  node [shape = oval,fixedsize = true,width = 1.5]
+  T1 [label = 'spam 95%']
+  T2 [label = 'no spam 100%']
+  T3 [label = 'spam 87%']
+  T4 [label = 'no spam 79%']
+
+  A -> T1
+  A -> B [color = red]
+  B -> C [color = red]
+  B -> T2; C -> T3; C -> T4 [color = red]
+}
+")
+```
+
+
+
+Esta es una regla simple: 
 clasificar como spam si tiene signos de exclamación y la palabra 'free'. 
 Clasificar como spam si no
 
  Clasificados como Spam
 ```{r}
-regla.spam <- spam.train$cfexc > 0 & spam.train$wffree > 0
-tab.1 <- table(spam.train$spam[regla.spam])
-tab.1
+#regla.spam <- spam.train$cfexc > 0 & spam.train$wffree > 0
+#tab.1 <- table(spam.train$spam[regla.spam])
+#tab.1
 ```
 
 Falsos positivos: 11%
 
 ```{r}
-round(prop.table(tab.1),2)
+#round(prop.table(tab.1),2)
 ```
 Clasificados como No spam
 ```{r}
-tab.2 <- table(spam.train$spam[!regla.spam])
-tab.2
-round(prop.table(tab.2),2)
+#tab.2 <- table(spam.train$spam[!regla.spam])
+#tab.2
+#round(prop.table(tab.2),2)
 ```
 
 Falsos negativos: 26%
