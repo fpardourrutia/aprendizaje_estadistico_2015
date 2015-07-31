@@ -21,14 +21,15 @@ def subir_dropbox(archivo):
     nom_archivo = archivo.split('/')[-1]
     response = client.put_file('/'+nom_archivo, f)
     #f, metadata = client.get_file_and_metadata('/'+nom_archivo)
-    liga = client.share('/'+nom_archivo, short_url=True)
+    liga = client.share('/'+nom_archivo, short_url=False)
+
     return liga
 
 
 
 def crear_post(liga, titulo = 'post'):
     ahora = datetime.datetime.now()
-
+    liga_down = liga+'?dl=1'
     posts_dir = '/Users/felipegonzalez/Repositorios/sitio_aprendizaje_estadistico_2015/_posts/'
     filename = str(ahora.year)+'-'+str(ahora.month).zfill(2)+'-'+str(ahora.day).zfill(2)+'-'+titulo+'.markdown'
     print 'Crear post: ' + posts_dir+filename
@@ -42,7 +43,7 @@ def crear_post(liga, titulo = 'post'):
     f.write('title:  \'%s\'\n' %titulo)
     f.write('categories: clase\n')
     f.write('---\n\n')
-    f.write('[Material]( %s )' % liga)
+    f.write('[Material]( %s )' % liga_down)
     f.close()
     return 1
 
