@@ -14,17 +14,22 @@ library(tidyr)
 options(digits=2)
 ```
 
+### Datos
+
+Simulamos datos a partir de un modelo simple como sigue:
+
 
 ```{r }
-set.seed(28) 
-sd.modelo <- 1
-x <- seq(from = 0, to = 1, length.out = 10)
+set.seed(2805) 
+sd.modelo <- 0.5
+n_muestra <- 30
+x <- runif(n_muestra, 0, 1) 
 y <- sin(2*pi*x) + cos(2*pi*x) + rnorm(length(x), mean = 0, sd = sd.modelo)
 datos <- data.frame(x, y)
 datos
 ```
 
-Graficamos la función $f(x)$ *real* y los datos de entrenamiento
+Graficamos la función $f(x)$ para el modelo *real* y los datos de entrenamiento:
 
 ```{r }
 x.plot <- seq(0,1,0.01)
@@ -34,10 +39,13 @@ graf.1 <- qplot(x,y) +
 graf.1
 ```
 
+### Ajuste o entrenamiento
+
+Ahora ajustamos polinomios de varios grados:
 
 ```{r }
 ajuste.mod <- function(datos, m){
-  lm(y ~ poly(x, degree=m, raw = TRUE), data = datos)
+  lm(y ~ poly(x, degree=m, raw = TRUE), data = datos) 
 }
 modelos <- lapply(1:9, function(i) ajuste.mod(datos, i))
 modelos[[1]]
@@ -45,7 +53,8 @@ modelos[[3]]
 modelos[[7]]
 ```
 
-Ahora graficaremos para ver qué modelos ajustamos y cómo van a ser sus predicciones. Nótese que tanto el modelo lineal como el modelo de grado 8 ajustan mal, por diferentes razones.
+Graficaremos para ver qué modelos ajustamos y cómo van a ser sus predicciones. Nótese que tanto el modelo lineal como el modelo de grado 8 ajustan mal, pero por diferentes razones.
+
 
 
 ```{r }
@@ -60,12 +69,16 @@ datos.graf <- rbind_all(datos.graf.l)
 datos.graf.m <- datos.graf %>% gather(variable, valor, prediccion:esperado)
 graf.2 <- ggplot(datos.graf.m, aes(x=x, y=valor, linetype=variable )) + 
     geom_line() +
-    facet_wrap(~grado) 
+    facet_wrap(~grado) + 
+    ylim(c(-3,3))
 graf.2.1 <- graf.2 + annotate("point",x=datos$x, y=datos$y, colour="black")
 graf.2.1
 ```
 
 
+### Error de entrenamiento y error de prueba para un conjunto de entrenamiento fijo.
+
+Calculamos los errores de entrenamiento:
 
 ```{r }
 errores.entrenamiento <- sapply(modelos, function(mod){ 
@@ -75,9 +88,10 @@ errores.entrenamiento <- sapply(modelos, function(mod){
 errores.entrenamiento
 ```
 
+Y ahora estimamos el error de predicción con una muestra de prueba de tamaño 500:
 
 ```{r }
-xp <- rep(x,500)
+xp <- runif(1000)
 yp <-  sin(2*pi*xp) + cos(2*pi*xp) +  rnorm(length(xp), mean = 0, sd = sd.modelo)
 errores.prueba <- sapply(modelos, function(mod){
     ajustados.prueba <- predict(mod, newdata = data.frame(x=xp))
@@ -86,51 +100,94 @@ errores.prueba <- sapply(modelos, function(mod){
 errores.prueba
 ```
 
-Graficamos para 
+
+Y comparamos los dos errores:
 
 ```{r }
 errores <- data.frame(grado=1:9, entrenamiento=errores.entrenamiento, 
     prueba = errores.prueba)
 errores.m <- errores %>% gather(var, valor, entrenamiento:prueba)
 graf.3 <- ggplot(errores.m, aes(x=grado, y=valor, linetype=var)) + geom_point()+
-    geom_line() + ylab("Error")
+    geom_line() + ylab("Error") 
 graf.3
 ```
 
-En esta última gráfica vemos un patrón que resultará ser usual: modelos demasiado rígidos (en este caso de grado bajo) no capturan señal en los datos y por lo tanto son malos en la predicción, mientras que modelos demasiado flexibles (grado alto en este caso) sobreajustan a los datos, y también son malos en la predicción. Sin embargo, modelos más complejos siempre ajustan mejor a los datos de entrenamiento que modelos más simples (el error de entrenamiento siempre disminuye cuando aumentamos complejidad).
-Nótese que esta evaluación de los modelos ajustados sólo utiliza una *muestra de entrenamiento* y luego una sola *muestra de prueba*. Como ejercicio adicional, podemos preguntarnos cómo se comportan nuestros modelos ajustados en promedio sobre nuevas muestras generadas por el fenómeno que nos interesa. Abajo muestreamos 500 veces entrenamiento y prueba exactamente como hicimos arriba, y promediamos los errores.
+En esta última gráfica vemos un patrón que resultará ser usual: 
 
-```{r }
-salida.sim.lista <- lapply(1:500, function(x){
-    xp <- seq(from = 0, to = 1, length.out = 10)
-    yp <- sin(2*pi*xp) + cos(2*pi*xp) + rnorm(length(xp), mean = 0, sd = sd.modelo)
-    datos <- data.frame(xp, yp)
+- modelos demasiado rígidos (en este caso de grado bajo) no capturan señal en los datos y por lo tanto son malos en la predicción, mientras que 
+- modelos demasiado flexibles (grado alto en este caso) sobreajustan a los datos, y también son malos en la predicción. 
+
+- Modelos más complejos siempre ajustan mejor a los datos de **entrenamiento** que modelos más simples (el error de entrenamiento siempre disminuye cuando aumentamos complejidad).
+
+- Pero modelos más complejos no necesariamente son mejores en la predicción.
+
+- Estas dos curvas dependen de las particularidades de los datos que usamos para ajustar o entrenar los polinomios, pero las afirmaciones de arriba siempre se cumplen.
+
+### Error de entrenamiento y de prueba promediando sobre conjuntos de entrenamiento.
+
+ Como ejercicio adicional, podemos preguntarnos cómo se comportan nuestros modelos ajustados en promedio sobre nuevas muestras generadas por el fenómeno que nos interesa. Abajo repetimos el 
+ proceso de arriba 300 veces: producimos  300 muestras de entrenamiento, ajustamos, y estimamos
+ el error de predicción con la misma muestra de tamaño 1000:
+
+
+
+
+```{r}
+# muestra de prueba fija.
+x <- runif(1000)
+y <- sin(2*pi*x)+cos(2*pi*x) + rnorm(1000, mean = 0, sd = sd.modelo)
+
+salida.sim.lista <- lapply(1:500, function(i){
+    # simular muestra de entrenamiento
+    x_e <- runif(n_muestra)
+    y_e <- sin(2*pi*x_e) + cos(2*pi*x_e) + rnorm(length(x_e), mean = 0, sd = sd.modelo)
+    datos <- data.frame(x = x_e, y = y_e)
+    # ajustar polinomios
     modelos <- lapply(1:9, function(m){
-            mod <- lm(yp ~ poly(xp, degree=m, raw = TRUE), data = datos)
+            mod <- lm(y ~ poly(x, degree=m, raw = TRUE), data = datos)
         mod
     })
-    errores.entrenamiento <- sapply(modelos, function(mod){ 
-        ajustados.entrenamiento <- fitted(mod)
-        sqrt(mean( (yp - ajustados.entrenamiento)^2))
+    #calcular error de entrenamiento
+    error_entrenamiento <- sapply(modelos, function(mod){ 
+        ajustados_entrenamiento <- fitted(mod)
+        sqrt(mean( (y_e - ajustados_entrenamiento)^2))
     })
-    y <- sin(2*pi*xp)+cos(2*pi*xp) + rnorm(length(xp), mean = 0, sd = sd.modelo)
-    errores.prueba <- sapply(modelos, function(mod){
-        ajustados.prueba <- fitted(mod)
+
+    # calcular estimación de error de prueba con la muestra de arriba
+    error_prueba <- sapply(modelos, function(mod){
+        ajustados.prueba <- predict(mod, newdata = data.frame(x=x))
         sqrt(mean( (y - ajustados.prueba )^2))
     })
-   data.frame(grado = 1:9, errores.entrenamiento, errores.prueba)
+    # regresar en un data.frame la evaluación de los modelos
+    data.frame(grado = 1:9, error_entrenamiento, error_prueba, id=i)
 })
 salida.sim <- rbind_all(salida.sim.lista)
 
-resumen.sim <- salida.sim %>% group_by(grado) %>%
-  summarise(error.prueba=mean(errores.prueba), error.entrena = mean(errores.entrenamiento)) %>%
-  gather(variable, value, -grado)
+resumen.sim <- salida.sim %>% 
+  group_by(grado) %>%
+  summarise(error_prueba=mean(error_prueba), error_entrenamiento = mean(error_entrenamiento)) %>%
+  gather(tipo, error, -grado)
   
 ggplot(resumen.sim,
-     aes(x=grado, y=value, col=variable, group=variable)) + geom_line() +
+     aes(x=grado, y=error, col=tipo, group=tipo)) + geom_line() +
     geom_point()
 ```
 
-En esta gráfica vemos también el patrón que observamos arriba.
+En esta gráfica observamos claramente el patrón que discutimos arriba:
+
+- Estas últimas gráficas evalúan el método, no un modelo particular. En este sentido son gráficas teóricas.
+
+Podemos ver también estas curvas junto con los resultados para varias muestras de entrenamiento. En la siguiente gráfica, cada línea delgada corresponde a una muestra de entrenamiento distinta:
+
+
+```{r}
+salida_graf <- salida.sim %>% 
+  gather(tipo, error, error_entrenamiento:error_prueba)
+
+ggplot(filter(salida_graf, id<=100), aes(x=grado, y=error)) + 
+  geom_line(aes(group=interaction(id, tipo), colour=tipo),alpha=0.5) +
+  scale_y_log10(breaks=c(0.25,0.5,1,2,4,8,16)) +
+  geom_line(data=resumen.sim, aes(group=tipo))
+```
 
 
