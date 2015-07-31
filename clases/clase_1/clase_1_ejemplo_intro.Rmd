@@ -8,7 +8,7 @@ output:
 ---
 
 
-### Reconocimiento de dígitos
+### Reconocimiento de dígitos: buscando patrones
 
 ```{r, message=FALSE}
 library(dplyr)
@@ -57,7 +57,8 @@ zip_train[3,1]
 automática? Nos gustaría poder "ver" en el espacio de dimensión 256 y reconocer
 los distintos grupos que forman los distintos dígitos, si es que existe. Podemos
 intentar mapear a un espacio de dimensión baja (2), intentando preservar la estructura
-local de los datos. En este caso intentamos con [t-sne](https://www.youtube.com/watch?v=RJVL80Gg3lA&list=UUtXKDgv1AVoG88PLl8nGXmw):
+local de los datos. En este caso intentamos con [t-sne](https://www.youtube.com/watch?v=RJVL80Gg3lA&list=UUtXKDgv1AVoG88PLl8nGXmw),
+que está principalmente en representar estructura local en el espacio de dimensión alta.
 
 
 
@@ -71,9 +72,12 @@ dat_tsne$digito <- as.character(muestra_dig$X1)
 ggplot(dat_tsne, aes(x=X1, y=X2, colour=digito, label=digito)) + geom_text()
 ```
 
+En este ejemplo, nunca utilizamos la etiqueta de dígito para cada imagen. Utilizamos una
+técnica para representar los datos en dimensión baja, y **descubrimos que por la mayor parte
+podemos distinguir los distintos patrones** asociados a distintos dígitos.
 
 
-### Clasificación de spam
+### Clasificación de spam: reglas de decisión, predicción
 
 Supongamos que queremos separar emails de spam de los que no lo son.
 Una primera idea es que esto podemos decidirlo adecuadamente considerando
@@ -147,9 +151,9 @@ spam_train %>% group_by(wfremove>0, spam) %>% tally %>%
   group_by(`wfremove > 0`) %>% mutate(prop = round(n/sum(n),2))
 ```
 
-Aquí vemos que entro de el grupo que contiene la palabra remove, la proporción
+Aquí vemos que entro de el grupo que contiene la palabra "remove"", la proporción
 de mail de spam es mucho más alta que en el grupo que no contiene. Nuestra primera regla
-podría ser entonces: si contiene la palabra remove, probablemente es spam. Sin embargo,
+podría ser entonces: si contiene la palabra "remove"", probablemente es spam. Sin embargo,
 si no la contiene, entonces no está tan claro. Para averiguar esto tenemos
 que concentrarnos en el grupo de correos que no contiene la palabra "remove". Por ejemplo,
 ¿será que las veces que ocurre remove nos ayuda? Parece que no nos va ayudar:
@@ -215,31 +219,32 @@ grViz(" digraph {
 ```
 
 
+Este es un conjunto relativamente simple de reglas recursivas. En cada nodo terminal
+simplemente clasificamos según la regla de la mayoría: si hay más spam, clasificamos en spam, y viceversa.
 
-Esta es una regla simple: 
-clasificar como spam si tiene signos de exclamación y la palabra 'free'. 
-Clasificar como spam si no
+Hay varias preguntas que podemos hacer aquí:
 
- Clasificados como Spam
-```{r}
-#regla.spam <- spam.train$cfexc > 0 & spam.train$wffree > 0
-#tab.1 <- table(spam.train$spam[regla.spam])
-#tab.1
-```
+#### ¿Qué tan bueno es nuestro algoritmo?
 
-Falsos positivos: 11%
+Nótese que según el árbol de arriba, clasificamos correctamente al menos al 87% de
+todos los casos que teníamos. Para calcular la tasa exacta de clasificados correctamente, tendríamos
+que ponderar la tasa de correctos de cada nodo con 
 
-```{r}
-#round(prop.table(tab.1),2)
-```
-Clasificados como No spam
-```{r}
-#tab.2 <- table(spam.train$spam[!regla.spam])
-#tab.2
-#round(prop.table(tab.2),2)
-```
+Sin embargo, **¿cómo podemos estar seguros de que el algoritmo se va a desempeñar
+de manera similar para emails que no hemos visto?** Es decir, ¿cómo entender si este
+algoritmo se generaliza?
 
-Falsos negativos: 26%
-Los errores son muy altos. ¿Cómo mejorar?
-```
+Lo que puede estar pasando es que estamos escogiendo reglas ad-hoc adaptadas a los
+correos que tenemos a la mano. Es decir, **aprendiendo de más** de los datos de entrenamiento.
+
+#### ¿Estamos escogiendo las mejores variables y los mejores cortes?
+
+Por otro lado, quizá deberíamos tener más reglas para hacer un mejor algoritmo. ¿Cómo podemos
+automatizar esta selección de reglas? Claramente no es posible ver todos los árboles posibles, pues
+contando variables y puntos de corte, el problema combinatorio es astronómico. 
+
+Pero con tres reglas como las de este ejemplo, seguro estamos tirando información útil, es decir, estamos *aprendiendo demasiado poco*
+
+¿Cómo encontramos el balance correcto? No dejar información útil sin utilizar, pero tampoco utilizar
+particularidades de nuestros datos que no generalizan en el futuro?
 
