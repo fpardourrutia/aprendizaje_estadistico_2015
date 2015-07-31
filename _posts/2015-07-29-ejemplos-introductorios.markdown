@@ -1,9 +1,9 @@
 ---
 layout: post
-title:  'Ejemplos introductorios: arpendizaje estadístico'
+title:  'Clase 1: Ejemplos introductorios: arpendizaje estadístico'
 categories: clase
 ---
 
-[Material]( https://db.tt/0fOxsHN7 )
+[Material](https://www.dropbox.com/s/l5j3z156iubboof/clase_1.zip?dl=1 )
 
 Aprendizaje supervisado y no supervisado. Dos ejemplos: Reconocimiento de dígitos y detección de spam. 
