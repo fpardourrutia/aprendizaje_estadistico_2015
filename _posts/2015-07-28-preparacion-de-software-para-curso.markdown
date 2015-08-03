@@ -16,7 +16,7 @@ Para instalar el software (se requieren al menos 4Gb de memoria):
 vagrant up
 ```
 La primera instalación puede tardar hasta una hora.
-- En un navegador (Safari o Chrome), abre la liga [http://localhost:8787](http://localhost:8787). Ahora ya estás trabajando en Rstudio.
+- En un navegador (Safari o Chrome), abre la liga [http://localhost:8787](http://localhost:8787). Usa el usuario `vagrant` y el password `vagrant`Ahora ya estás trabajando en Rstudio.
 - Guarda tu trabajo en la carpeta  `clases`. Esta carpeta está dentro de la máquina virtual,
 y está sincronizada con la carpeta `clases` desde donde arranacaste vagrant. Puedes utilizar
 el comando `vagrant halt` (apagar la máquina virtual) para termines, y `vagrant up` cuando quieres regresar a ella. Puedes utilizar también `vagrant suspend` para pausar la máquina, de forma que cuando la arranques otra
