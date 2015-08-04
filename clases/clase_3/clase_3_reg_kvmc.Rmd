@@ -1,0 +1,158 @@
+---
+title: "Dos métodos simples: regresión y k - vecinos más cercanos"
+author: "Felipe González"
+date: Otoño 2015
+output: 
+  html_document: 
+    theme: united
+---
+
+
+
+```{r}
+library(kknn)
+library(ggplot2)
+library(dplyr)
+library(tidyr)
+options(digits=2)
+```
+
+
+
+
+Primero simulamos los datos que queremos predecir. En este ejemplo, la $Y$ 
+toma valores 0 o 1, así que podemos interpretar como un problema de clasificación. 
+Los datos son simulados como sigue: 
+
+- los datos de clase Y=1 son una mezcla de 10 normales fijas (con distintos centros), y 
+- los datos de clase Y=0 son una mezcla de otras 10 normales fijas (con distintos centros). 
+
+En cada caso, los centros de tales normales se generaron también con distribuciones normales.
+
+Primero simulamos los centros y definimos una función para simular datos:
+
+```{r }
+set.seed(28057)
+centros_negro <- data.frame(x.1=rnorm(10,0,1.5), x.2=rnorm(10,1,1.5))
+centros_rojo <- data.frame(x.1=rnorm(10,1,1.5), x.2=rnorm(10,0,1.5))
+
+simular <- function(n, centros_negro, centros_rojo){
+  sim_datos <- rdply(n, function(x){
+  	u <- runif(1)
+  	if (u > 0.5){
+  		centro <- centros_rojo[sample(1:10,1),]
+  		color <- 0
+  	} else {
+  		centro <- centros_negro[sample(1:10,1), ]		
+  		color <- 1
+  	}
+  	data.frame(color = color, 
+  		x.1 = rnorm(1, centro[1,1], 1/2), 
+  		x.2 = rnorm(1, centro[1,2], 1/2))
+  	})
+  sim_datos
+  }
+```
+
+Ahora simulamos una muestra de entrenamiento y una muestra grande de prueba:
+
+```{r}
+sim_entrena <- simular(500, centros_negro, centros_rojo)
+sim_prueba <- simular(3000, centros_negro, centros_rojo)
+
+head(sim_entrena, 10)
+ggplot(sim_entrena, aes(x=x.1, y=x.2, colour=factor(color))) + geom_point()
+```
+
+### Modelo lineal
+
+En primer lugar ajustamos un modelo de regresión (si sabes regresión logística que veremos más adelante
+puedes usarla aquí):
+
+```{r}
+modelo_lineal <- lm(color ~ x.1 + x.2, data = sim_entrena)
+modelo_lineal
+```
+
+Recordemos que cuando la predicción $\hat{y}>=0.5$ clasificamos al color 1, y clasificamos
+a color 0 en otro caso. Podemos dibujar entonces la función que clasifica junto con los datos de la siguiente forma:
+
+```{r}
+grid_graf <- expand.grid(x.1 = seq(-6,5, 0.05), x.2 = seq(-6,5,0.05))
+
+graf_clasificador <- function(mod){
+  graf_out <- grid_graf
+  graf_out$fitted <- predict(mod, newdata = grid_graf) 
+  graf_out$fitted[graf_out$fitted > 0.495 & graf_out$fitted < 0.505] <- NA
+  plot_out <- ggplot(graf_out, aes(x=x.1,y=x.2)) + 
+	geom_point(alpha=0.9, size=2, aes(colour = as.numeric(fitted>0.5))) + 
+  scale_colour_gradient(low = '#F8766D', high='#00BFC4', na.value='gray20') +
+	geom_point(aes(x=x.1, y=x.2, fill = factor(color)), pch=21, colour='gray20', data=sim.datos, size=3)
+  plot_out
+}
+
+```
+
+```{r}
+print(graf_clasificador(modelo_lineal))
+```
+
+Ahora calculamos el error de entrenamiento y prueba:
+```{r}
+mean((sim_entrena$color - fitted(modelo_lineal))^2)
+```
+
+```{r}
+preds <- predict(modelo_lineal, newdata = sim_prueba)
+mean((sim_prueba$color - preds)^2)
+```
+
+O si queremos, podemos calcular las tasas de clasificación incorrecta:
+```{r}
+mean(sim_entrena$color != as.numeric(fitted(modelo_lineal)>0.5))
+mean(sim_prueba$color != as.numeric(preds > 0.5))
+```
+
+### k-vecinos más cercanos
+
+```{r }
+vmc <- train.kknn(color ~ x.1 + x.2, 
+	data = sim_entrena, k = 10, kernel='rectangular') 
+print(graf_clasificador(vmc))
+
+```
+
+```{r}
+fitted <- predict(vmc, newdata = sim_entrena)
+mean(sim_entrena$color != as.numeric(fitted > 0.5))
+
+```
+
+```{r}
+preds <- predict(vmc, newdata = sim_prueba) > 0.5
+mean(sim_prueba$color != as.numeric(preds > 0.5))
+```
+
+### Afinando el parámetro de k-vmc
+
+Podemos investigar más el modelo más apropiado para estos datos. 
+
+
+```{r}
+num_vecinos <- data.frame(k = c(1,2,5,7,10,15,20,50,100)) %>% group_by(k)
+
+calcular_errores <- function(dat){
+  vecino_k <- train.kknn(color ~ x.1 + x.2, 
+      data = sim_entrena, 
+      k=dat$k, kernel='rectangular')
+  prueba <- mean((predict(vecino_k, newdata = sim_prueba)-sim_prueba$color)^2)
+	fitted <- predict(vecino_k, newdata = sim_entrena)
+	entrena <- mean((fitted-sim_entrena$color)^2)
+	data.frame(k = dat$k, prueba = prueba, entrena = entrena)
+}
+
+errores_vmc <- do(num_vecinos, calcular_errores(.)) %>%
+  gather(tipo, error, prueba:entrena)
+ggplot(errores_vmc, aes(x = 500/k, y=error, colour=tipo, group=tipo)) + 
+  geom_point(size=3) + geom_line() 
+```
