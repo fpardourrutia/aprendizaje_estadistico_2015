@@ -37,7 +37,7 @@ centros_negro <- data.frame(x.1=rnorm(10,0,1.5), x.2=rnorm(10,1,1.5))
 centros_rojo <- data.frame(x.1=rnorm(10,1,1.5), x.2=rnorm(10,0,1.5))
 
 simular <- function(n, centros_negro, centros_rojo){
-  sim_datos <- rdply(n, function(x){
+  sim_datos <- lapply(1:n, function(i){
   	u <- runif(1)
   	if (u > 0.5){
   		centro <- centros_rojo[sample(1:10,1),]
@@ -50,7 +50,7 @@ simular <- function(n, centros_negro, centros_rojo){
   		x.1 = rnorm(1, centro[1,1], 1/2), 
   		x.2 = rnorm(1, centro[1,2], 1/2))
   	})
-  sim_datos
+  rbind_all(sim_datos)
   }
 ```
 
@@ -87,7 +87,7 @@ graf_clasificador <- function(mod){
   plot_out <- ggplot(graf_out, aes(x=x.1,y=x.2)) + 
 	geom_point(alpha=0.9, size=2, aes(colour = as.numeric(fitted>0.5))) + 
   scale_colour_gradient(low = '#F8766D', high='#00BFC4', na.value='gray20') +
-	geom_point(aes(x=x.1, y=x.2, fill = factor(color)), pch=21, colour='gray20', data=sim.datos, size=3)
+	geom_point(aes(x=x.1, y=x.2, fill = factor(color)), pch=21, colour='gray20', data=sim_entrena, size=3)
   plot_out
 }
 
