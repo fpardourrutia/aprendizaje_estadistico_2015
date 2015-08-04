@@ -4,6 +4,6 @@ title:  'Clase 2: Ajuste de curvas y predicción'
 categories: clase
 ---
 
-[Material](https://www.dropbox.com/s/t8a3xgrdzzinoct/clase_2.zip?dl=1 )
+[Material] https://www.dropbox.com/s/cy4nhik69pac9er/.zip?dl=1 )
 
 Aprendizaje supervisado, error de entrenamiento y prueba.
