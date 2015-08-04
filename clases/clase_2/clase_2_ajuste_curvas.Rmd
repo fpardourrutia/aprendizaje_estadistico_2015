@@ -3,7 +3,7 @@ title: "Ajuste de curvas y predicción"
 author: "Felipe Gonzalez"
 output: 
   html_document: 
-    theme: spacelab
+    theme: united
 ---
 
 
