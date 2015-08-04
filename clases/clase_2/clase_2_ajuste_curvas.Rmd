@@ -1,7 +1,9 @@
 ---
 title: "Ajuste de curvas y predicción"
 author: "Felipe Gonzalez"
-output: html_document
+output: 
+  html_document: 
+    theme: spacelab
 ---
 
 
@@ -16,74 +18,152 @@ options(digits=2)
 
 ### Datos
 
-Simulamos datos a partir de un modelo simple como sigue:
+Simulamos datos a partir de un modelo simple como sigue (del modelo "real" $Y=f(X)+\epsilon$):
+$$Y=f(X) +\epsilon,$$
+donde 
+$$f(X)=\sin (2\pi X)+\cos(2\pi X),$$
+y $\epsilon \sim N(0,\sigma^2)$, y finalmente $X\sim U(0,1)$. 
+
+Para generar datos de este modelo, primero generamos $x_i\sim U(0,1)$, calculamos $f(x_i)$, y finalmente
+sumamos $\epsilon_i \sim N(0,\sigma^2)$ para obtener $y_i$. Con esto tenemos una
+muestra de entrenamiento
+$$\mathcal{L} =\{ (x_i,y_i), i=1,2,\ldots, n\} $$
 
 
 ```{r }
-set.seed(2805) 
-sd.modelo <- 0.5
-n_muestra <- 30
-x <- runif(n_muestra, 0, 1) 
-y <- sin(2*pi*x) + cos(2*pi*x) + rnorm(length(x), mean = 0, sd = sd.modelo)
-datos <- data.frame(x, y)
+f <- function(x){
+  sin(2*pi*x) + cos(2*pi*x)
+}
+simular  <- function(n_muestra, sd){
+  x <- runif(n_muestra, 0, 1) 
+  y <- f(x) + rnorm(length(x), mean = 0, sd = sd_mod)
+  data.frame(x, y)
+}
+set.seed(28) 
+sd_mod <- 0.5
+datos <- simular(20, sd_mod)
 datos
 ```
 
 Graficamos la función $f(x)$ para el modelo *real* y los datos de entrenamiento:
 
 ```{r }
-x.plot <- seq(0,1,0.01)
-y.plot <- sin(2*pi*x.plot) + cos(2*pi*x.plot)
-graf.1 <- qplot(x,y) + 
-    annotate("line", x=x.plot, y=y.plot, linetype="dotted")
-graf.1
+x_plot <- seq(0,1,0.01)
+y_plot <- f(x_plot)
+ggplot(datos, aes(x=x, y=y), colour='red')+
+  geom_point() +
+  annotate("line", x=x_plot, y=y_plot, linetype="dotted")
 ```
 
 ### Ajuste o entrenamiento
 
-Ahora ajustamos polinomios de varios grados:
+En este ejemplo, intentaremos ajustar modelos polinomiales a estos datos. Es decir, nuestra
+familia está dada por polinomios de la forma
+$$g(x)=\sum_{i=0}^p \alpha_j x^j,$$
+que ajustamos por mínimos cuadrados resolviendo
+$$\min \frac{1}{n}\sum_{i=1}^n \left(y_i - \sum_{j=0}^p \alpha_j x_i^j \right)^2,$$
+que nos da coeficientes $\hat{\alpha_0}, \hat{\alpha_1},\ldots, \hat{\alpha_p}$. De 
+esta forma escribimos:
+$$\hat{f}_{\mathcal L} (x) = \sum_{j=0}^p \hat{\alpha_j}x^j,$$
+que es nuestra función de predicción.
 
-```{r }
-ajuste.mod <- function(datos, m){
+Por ejemplo,
+supongamos que escogemos trabajar con polinomios de grado $p=5$:
+
+```{r}
+ajuste_mod <- function(datos, m){
   lm(y ~ poly(x, degree=m, raw = TRUE), data = datos) 
 }
-modelos <- lapply(1:9, function(i) ajuste.mod(datos, i))
+```
+
+Las $\hat{\alpha_j}$ están dadas por:
+
+```{r}
+mod <- ajuste_mod(datos, m = 6)
+data.frame(coef = coef(mod))
+```
+
+Y podemos graficar los datos de entrenamiento, la verdadera $f$ y la $\hat{f}_{\mathcal L} (x)$ ajustada:
+
+```{r}
+dat <- data.frame( x=x_plot, prediccion = predict(mod, newdata = data.frame(x=x_plot)),
+        esperado = y_plot)
+
+datos_graf <- dat %>% gather(tipo, valor, prediccion:esperado)
+ggplot(datos_graf, aes(x=x, y=valor, linetype=tipo )) + 
+    geom_line() +
+    ylim(c(-3,3)) +
+    annotate("point",x=datos$x, y=datos$y, colour="red")
+```
+
+
+### Error de entrenamiento y de prueba
+
+¿Cuál es el error de entrenamiento? Simplemente calculamos
+```{r}
+ajustados <- predict(mod, newdata = datos)
+mean((datos$y - ajustados)^2)
+```
+
+¿Cómo estimamos el error de predicción? Podemos simular una muestra grande para probar:
+```{r}
+datos_prueba <- simular(1000, sd)
+predicciones <- predict(mod, newdata = datos_prueba)
+mean((datos_prueba$y - predicciones)^2)
+```
+
+Nótese que el error de entrenamiento es bastante más chico que el error de predicción.
+
+- ¿Cuáles son los defectos que puedes ver en el modelo que ajustamos? ¿Por qué ocurren estos defectos?
+- ¿Es natural esperar que el error de entrenamiento tienda a ser menor que el de predicción?
+
+
+
+
+# Modelos de distinta complejidad
+
+Ahora veremos cómo se ve este problema cuando ajustamos polinomios de varios grados. Por ejemplo: 
+
+
+```{r }
+modelos <- lapply(1:9, function(i) ajuste_mod(datos, i))
 modelos[[1]]
 modelos[[3]]
 modelos[[7]]
 ```
 
-Graficaremos para ver qué modelos ajustamos y cómo van a ser sus predicciones. Nótese que tanto el modelo lineal como el modelo de grado 8 ajustan mal, pero por diferentes razones.
+Graficaremos para ver qué modelos ajustamos y cómo van a ser sus predicciones. Nótese que tanto el modelo lineal como el modelo de grado 9 ajustan mal, pero por diferentes razones:
 
-
+- ¿Por qué ajustan mal los modelos de grado demasiado bajo?
+- ¿Por qué ajustan mal los modelos de grado muy alto?
 
 ```{r }
-datos.graf.l <- lapply(1:9, function(i){
-   df <- data.frame(grado = i,  x=x.plot , 
-        prediccion = predict(modelos[[i]], newdata = data.frame(x=x.plot)),
-        esperado = y.plot)
+datos_graf_lista <- lapply(1:9, function(i){
+   df <- data.frame(grado = i,  x=x_plot , 
+        prediccion = predict(modelos[[i]], newdata = data.frame(x=x_plot)),
+        esperado = y_plot)
     df   
 })
-datos.graf <- rbind_all(datos.graf.l)
+datos_graf <- rbind_all(datos_graf_lista)
 
-datos.graf.m <- datos.graf %>% gather(variable, valor, prediccion:esperado)
-graf.2 <- ggplot(datos.graf.m, aes(x=x, y=valor, linetype=variable )) + 
+dat <- datos_graf %>% gather(variable, valor, prediccion:esperado)
+ggplot(dat, aes(x=x, y=valor, linetype=variable )) + 
     geom_line() +
     facet_wrap(~grado) + 
-    ylim(c(-3,3))
-graf.2.1 <- graf.2 + annotate("point",x=datos$x, y=datos$y, colour="black")
-graf.2.1
+    ylim(c(-3,3)) + 
+    annotate("point",x=datos$x, y=datos$y, colour="black")
 ```
 
 
-### Error de entrenamiento y error de prueba para un conjunto de entrenamiento fijo.
+
+### Error de entrenamiento y error de prueba 
 
 Calculamos los errores de entrenamiento:
 
 ```{r }
 errores.entrenamiento <- sapply(modelos, function(mod){ 
     ajustados.entrenamiento <- fitted(mod)
-    sqrt(mean( (y - ajustados.entrenamiento)^2))
+    (mean( (datos$y - ajustados.entrenamiento)^2))
     })
 errores.entrenamiento
 ```
@@ -92,10 +172,10 @@ Y ahora estimamos el error de predicción con una muestra de prueba de tamaño 5
 
 ```{r }
 xp <- runif(1000)
-yp <-  sin(2*pi*xp) + cos(2*pi*xp) +  rnorm(length(xp), mean = 0, sd = sd.modelo)
+yp <-  sin(2*pi*xp) + cos(2*pi*xp) +  rnorm(length(xp), mean = 0, sd = sd_mod)
 errores.prueba <- sapply(modelos, function(mod){
     ajustados.prueba <- predict(mod, newdata = data.frame(x=xp))
-    sqrt(mean( (yp - ajustados.prueba )^2))
+    (mean( (yp - ajustados.prueba )^2))
     })
 errores.prueba
 ```
@@ -114,8 +194,8 @@ graf.3
 
 En esta última gráfica vemos un patrón que resultará ser usual: 
 
-- modelos demasiado rígidos (en este caso de grado bajo) no capturan señal en los datos y por lo tanto son malos en la predicción, mientras que 
-- modelos demasiado flexibles (grado alto en este caso) sobreajustan a los datos, y también son malos en la predicción. 
+- Modelos demasiado rígidos (en este caso de grado bajo) no capturan señal en los datos y por lo tanto son malos en la predicción, mientras que 
+- Modelos demasiado flexibles (grado alto en este caso) sobreajustan fácilmente los datos, y también son malos en la predicción. 
 
 - Modelos más complejos siempre ajustan mejor a los datos de **entrenamiento** que modelos más simples (el error de entrenamiento siempre disminuye cuando aumentamos complejidad).
 
@@ -134,14 +214,10 @@ En esta última gráfica vemos un patrón que resultará ser usual:
 
 ```{r}
 # muestra de prueba fija.
-x <- runif(1000)
-y <- sin(2*pi*x)+cos(2*pi*x) + rnorm(1000, mean = 0, sd = sd.modelo)
 
 salida.sim.lista <- lapply(1:500, function(i){
     # simular muestra de entrenamiento
-    x_e <- runif(n_muestra)
-    y_e <- sin(2*pi*x_e) + cos(2*pi*x_e) + rnorm(length(x_e), mean = 0, sd = sd.modelo)
-    datos <- data.frame(x = x_e, y = y_e)
+    datos <- simular(n_muestra = 30, sd_mod)
     # ajustar polinomios
     modelos <- lapply(1:9, function(m){
             mod <- lm(y ~ poly(x, degree=m, raw = TRUE), data = datos)
@@ -150,13 +226,13 @@ salida.sim.lista <- lapply(1:500, function(i){
     #calcular error de entrenamiento
     error_entrenamiento <- sapply(modelos, function(mod){ 
         ajustados_entrenamiento <- fitted(mod)
-        sqrt(mean( (y_e - ajustados_entrenamiento)^2))
+        sqrt(mean( (datos$y - ajustados_entrenamiento)^2))
     })
 
     # calcular estimación de error de prueba con la muestra de arriba
     error_prueba <- sapply(modelos, function(mod){
-        ajustados.prueba <- predict(mod, newdata = data.frame(x=x))
-        sqrt(mean( (y - ajustados.prueba )^2))
+        ajustados.prueba <- predict(mod, newdata = data.frame(x=datos_prueba$x))
+        sqrt(mean( (datos_prueba$y - ajustados.prueba )^2))
     })
     # regresar en un data.frame la evaluación de los modelos
     data.frame(grado = 1:9, error_entrenamiento, error_prueba, id=i)
@@ -165,7 +241,7 @@ salida.sim <- rbind_all(salida.sim.lista)
 
 resumen.sim <- salida.sim %>% 
   group_by(grado) %>%
-  summarise(error_prueba=mean(error_prueba), error_entrenamiento = mean(error_entrenamiento)) %>%
+  dplyr::summarise(error_prueba=mean(error_prueba), error_entrenamiento = mean(error_entrenamiento)) %>%
   gather(tipo, error, -grado)
   
 ggplot(resumen.sim,
