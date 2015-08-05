@@ -1,5 +1,5 @@
 ---
-title: "Dos métodos simples: regresión y k - vecinos más cercanos"
+title: "Ejemplo de clasificación: k-vmc y mínimos cuadrados"
 author: "Felipe González"
 date: Otoño 2015
 output: 

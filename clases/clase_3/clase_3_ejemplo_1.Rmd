@@ -1,0 +1,77 @@
+---
+title: "Dos métodos simples: mínimos cuadrados y k - vecinos más cercanos"
+author: "Felipe González"
+date: Otoño 2015
+output: 
+  html_document: 
+    theme: united
+---
+
+Aquí vemos unos ejemplos iniciales para entender regresión y k-vecinos más cercanos
+
+
+```{r}
+library(kknn)
+library(ggplot2)
+library(dplyr)
+library(tidyr)
+```
+
+### Datos
+
+```{r}
+head(mtcars)
+ggplot(mtcars, aes(x = disp, y = mpg)) + geom_point(size = 4)
+```
+
+### Mínimos cuadrados
+
+La recta de mínimos cuadrados está dada como sigue:
+
+```{r}
+test_grid <- data.frame(disp = seq(50,500,5))
+dat <- mtcars[sample(1:nrow(mtcars), nrow(mtcars)), ]
+modelo_lineal <- lm(mpg ~ disp, data=mtcars)
+test_grid$mpg <- predict(modelo_lineal, test_grid)
+ggplot(mtcars, aes(x = disp, y = mpg)) + geom_point(size = 4) +
+  geom_line(data=test_grid, colour='red')
+```
+
+
+### k-vecinos más cercanos
+
+
+Este es 1-vecino más cercano
+
+
+```{r}
+
+#dat <- mtcars
+vmc.1 <- kknn(mpg ~ disp, train = dat, test= test_grid, k = 1, kernel='rectangular')
+test_grid$pred <- predict(vmc.1)
+ggplot(mtcars, aes(x = disp, y = mpg)) + geom_jitter(size=4) +
+  geom_line(data = test_grid, aes(x=disp, y=pred, colour= 'red'), size=1.1)
+```
+
+
+Y cinco vecinos más cercanos:
+
+
+
+```{r}
+vmc.1 <- kknn(mpg ~ disp, train = mtcars, test= test_grid, k = 5, kernel='rectangular')
+test_grid$pred <- predict(vmc.1)
+ggplot(mtcars, aes(x = disp, y = mpg)) + geom_point(size=4) +
+  geom_line(data = test_grid, aes(x=disp, y=pred, colour= 'red'), size=1.1)
+```
+
+25 vecinos más cercanos:
+
+```{r}
+vmc.1 <- kknn(mpg ~ disp, train = mtcars, test= test_grid, k = 25, kernel='rectangular')
+test_grid$pred <- predict(vmc.1)
+ggplot(mtcars, aes(x = disp, y = mpg)) + geom_point(size=4) +
+  geom_line(data = test_grid, aes(x=disp, y=pred, colour= 'red'), size=1.1)
+```
+
+
