@@ -68,7 +68,7 @@ $$\hat{f}_{\mathcal L} (x) = \sum_{j=0}^p \hat{\alpha_j}x^j,$$
 que es nuestra función de predicción.
 
 Por ejemplo,
-supongamos que escogemos trabajar con polinomios de grado $p=5$:
+supongamos que escogemos trabajar con polinomios de grado $p=6$:
 
 ```{r}
 ajuste_mod <- function(datos, m){
@@ -120,7 +120,7 @@ Nótese que el error de entrenamiento es bastante más chico que el error de pre
 
 
 
-# Modelos de distinta complejidad
+### Modelos de distinta complejidad
 
 Ahora veremos cómo se ve este problema cuando ajustamos polinomios de varios grados. Por ejemplo: 
 
@@ -192,7 +192,8 @@ graf.3 <- ggplot(errores.m, aes(x=grado, y=valor, linetype=var)) + geom_point()+
 graf.3
 ```
 
-En esta última gráfica vemos un patrón que resultará ser usual: 
+En esta última gráfica vemos un patrón que resultará ser usual:
+
 
 - Modelos demasiado rígidos (en este caso de grado bajo) no capturan señal en los datos y por lo tanto son malos en la predicción, mientras que 
 - Modelos demasiado flexibles (grado alto en este caso) sobreajustan fácilmente los datos, y también son malos en la predicción. 
@@ -202,6 +203,22 @@ En esta última gráfica vemos un patrón que resultará ser usual:
 - Pero modelos más complejos no necesariamente son mejores en la predicción.
 
 - Estas dos curvas dependen de las particularidades de los datos que usamos para ajustar o entrenar los polinomios, pero las afirmaciones de arriba siempre se cumplen.
+
+
+
+### Algunas conclusiones
+
+
+- <span style="color:purple"> **El mejor modelo no es el que reduce más el error de entrenamiento** </span>
+
+- <span style="color:purple"> **El error de entrenamiento es generalmente un estimador pobre del error de predicción de un modelo**</span>
+
+- <span style="color:purple"> **Los mejores modelos tienen el nivel de complejidad adecuada para el problema, incluyendo el tamaño de muestra**</span>
+
+
+
+
+
 
 ### Error de entrenamiento y de prueba promediando sobre conjuntos de entrenamiento.
 
