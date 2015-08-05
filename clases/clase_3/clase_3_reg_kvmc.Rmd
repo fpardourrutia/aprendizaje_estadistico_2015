@@ -78,23 +78,25 @@ Recordemos que cuando la predicción $\hat{y}>=0.5$ clasificamos al color 1, y c
 a color 0 en otro caso. Podemos dibujar entonces la función que clasifica junto con los datos de la siguiente forma:
 
 ```{r}
-grid_graf <- expand.grid(x.1 = seq(-6,5, 0.05), x.2 = seq(-6,5,0.05))
+grid_1 <- expand.grid(x.1 = seq(-6,5, 0.05), x.2 = seq(-6,5,0.05))
 
-graf_clasificador <- function(mod){
-  graf_out <- grid_graf
-  graf_out$fitted <- predict(mod, newdata = grid_graf) 
-  graf_out$fitted[graf_out$fitted > 0.495 & graf_out$fitted < 0.505] <- NA
+graf_clasificador <- function(graf_out){
+  
+  graf_out$fitted[graf_out$fitted > 0.499 & graf_out$fitted < 0.501] <- NA
   plot_out <- ggplot(graf_out, aes(x=x.1,y=x.2)) + 
-	geom_point(alpha=0.9, size=2, aes(colour = as.numeric(fitted>0.5))) + 
-  scale_colour_gradient(low = '#F8766D', high='#00BFC4', na.value='gray20') +
-	geom_point(aes(x=x.1, y=x.2, fill = factor(color)), pch=21, colour='gray20', data=sim_entrena, size=3)
+	    geom_point(alpha=0.9, size=2, aes(colour = as.numeric(fitted>0.5))) + 
+      scale_colour_gradient(low = '#F8766D', high='#00BFC4', na.value='gray20') +
+	    geom_point(aes(x=x.1, y=x.2, fill = factor(color)), alpha=0.6, 
+	           pch=21, colour='gray20', data=sim_entrena, size=3)
   plot_out
 }
 
 ```
 
 ```{r}
-print(graf_clasificador(modelo_lineal))
+graf_out <- grid_1
+graf_out$fitted <- predict(modelo_lineal, newdata = grid_1) 
+print(graf_clasificador(graf_out))
 ```
 
 Ahora calculamos el error de entrenamiento y prueba:
@@ -115,23 +117,46 @@ mean(sim_prueba$color != as.numeric(preds > 0.5))
 
 ### k-vecinos más cercanos
 
-```{r }
-vmc <- train.kknn(color ~ x.1 + x.2, 
-	data = sim_entrena, k = 10, kernel='rectangular') 
-print(graf_clasificador(vmc))
-
-```
+Ahora probamos con k-vecinos más cercanos. Nótese que las regiones de clasificación son mucho más
+flexibles que en regresión, y obtenemos una regla de clasificación más compleja:
 
 ```{r}
-fitted <- predict(vmc, newdata = sim_entrena)
+vmc <- kknn(color ~ x.1 + x.2, 
+	train = sim_entrena, test = grid_1, k = 20, kernel='rectangular') # encontrar vecinos más cercanos en grid
+graf_out$fitted <- predict(vmc) 
+print(graf_clasificador(graf_out))
+```
+
+
+
+Si usamos menos vecinos, entonces el clasificador es aún más complicado:
+
+
+```{r}
+vmc <- kknn(color ~ x.1 + x.2, 
+	train = sim_entrena, test = grid_1, k = 20, kernel='rectangular') # encontrar vecinos más cercanos en grid
+graf_out$fitted <- predict(vmc) 
+print(graf_clasificador(graf_out))
+```
+
+Podemos calcular, por ejemplo, errores para 20 vecinos más cercanos:
+
+
+```{r}
+vmc_ent <- kknn(color ~ x.1 + x.2, 
+	train = sim_entrena, test = sim_entrena, k = 10, kernel='rectangular') 
+fitted <- predict(vmc_ent)
 mean(sim_entrena$color != as.numeric(fitted > 0.5))
 
 ```
 
 ```{r}
-preds <- predict(vmc, newdata = sim_prueba) > 0.5
+vmc_prueba <- kknn(color ~ x.1 + x.2, 
+	train = sim_entrena, test = sim_prueba, k = 10, kernel='rectangular') 
+preds <- predict(vmc_prueba) 
 mean(sim_prueba$color != as.numeric(preds > 0.5))
 ```
+
 
 ### Afinando el parámetro de k-vmc
 
@@ -139,20 +164,24 @@ Podemos investigar más el modelo más apropiado para estos datos.
 
 
 ```{r}
-num_vecinos <- data.frame(k = c(1,2,5,7,10,15,20,50,100)) %>% group_by(k)
+num_vecinos <- data.frame(k = c(1,2,5,7,10,15,20,50,100,150,250,490)) %>% group_by(k)
 
 calcular_errores <- function(dat){
-  vecino_k <- train.kknn(color ~ x.1 + x.2, 
-      data = sim_entrena, 
+  vecino_k_ent <- kknn(color ~ x.1 + x.2, 
+      train = sim_entrena, test = sim_entrena,
       k=dat$k, kernel='rectangular')
-  prueba <- mean((predict(vecino_k, newdata = sim_prueba)-sim_prueba$color)^2)
-	fitted <- predict(vecino_k, newdata = sim_entrena)
-	entrena <- mean((fitted-sim_entrena$color)^2)
+  vecino_k_prueba <- kknn(color ~ x.1 + x.2, 
+      train = sim_entrena, test = sim_prueba, 
+      k=dat$k, kernel='rectangular')
+  fit_entrena <- predict(vecino_k_ent) > 0.5
+  fit_prueba <- predict(vecino_k_prueba) > 0.5
+  prueba <- mean(fit_prueba != sim_prueba$color)
+	entrena <- mean( fit_entrena != sim_entrena$color)
 	data.frame(k = dat$k, prueba = prueba, entrena = entrena)
 }
 
 errores_vmc <- do(num_vecinos, calcular_errores(.)) %>%
   gather(tipo, error, prueba:entrena)
-ggplot(errores_vmc, aes(x = 500/k, y=error, colour=tipo, group=tipo)) + 
-  geom_point(size=3) + geom_line() 
+ggplot(errores_vmc, aes(x = factor(floor(500/k)), y=error, colour=tipo, group=tipo)) + 
+  geom_point(size=3) + geom_line() + xlab('Grados de libertad')
 ```
