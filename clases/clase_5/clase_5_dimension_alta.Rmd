@@ -1,0 +1,273 @@
+---
+title: "Vecinos más cercanos en dimensión alta"
+author: "Felipe González"
+date: Otoño 2015
+output: 
+  html_document: 
+    theme: united
+---
+
+Consideramos el problema de predecir $y$ cuando 
+$$y=f(x) = e^{-8\sum_{i=1}^p{x_i^2}}$$.
+
+Queremos predecir $y$ cuando $x=0$. Este problema es determinístico, pues la $x$ determina el valor
+de $y$.
+
+### Dimensión p=2
+
+
+En general, consideramos el problema de dimensión $p$. Para $p=2$, datos simulados
+ (con $n=1000$ datos de entrenamiento)
+se ven como sigue:
+
+```{r}
+library(ggplot2)
+fun.1 <- function(x){
+  exp(-8*sum(x^2))
+}
+x.1 <- runif(1000, -1, 1)
+x.2 <- runif(1000, -1, 1)
+dat <- data.frame(x.1, x.2)
+dat$y <- apply(dat, 1, fun.1)
+ggplot(dat, aes(x=x.1,y=x.2, colour=y)) + geom_point()
+
+```
+
+Para este caso con $p=2$ podemos encontrar el vecino más cercano a $x=0$, y cuál
+sería nuestra predicción:
+
+```{r}
+
+dist.origen <- apply(dat[,1:2], 1, function(x){sqrt(sum(x^2))})
+mas.cercano.indice <- which.min(dist.origen)
+mas.cercano <- dat[mas.cercano.indice, ]
+mas.cercano
+```
+
+**Como $f(1)=1$, nuestra predicción óptima es $\hat{y}=1$. En este caso, quedamos
+bastante cerca** (replica con distintos conjuntos de entrenamiento generados con el 
+código de arriba). 
+
+
+### Dimensión alta
+
+Ahora repetimos para $p=8$. Obtenemos:
+
+```{r}
+sims.1 <- lapply(1:8, function(i){runif(1000, -1, 1)})
+dat <- data.frame(Reduce(cbind, sims.1))
+dat$y <- apply(dat, 1, fun.1)
+
+dist.origen <- apply(dat[,1:8], 1, function(x){sqrt(sum(x^2))})
+mas.cercano.indice <- which.min(dist.origen)
+mas.cercano <- dat[mas.cercano.indice, ]
+mas.cercano
+```
+
+Nótese que nuestra predicción ahora es:
+
+```{r}
+mas.cercano$y
+```
+que está muy lejos del óptimo que es 1. La razón es que el "vecino" más cercano
+está a distancia del origen (el punto en el que queremos predecir) de:
+
+```{r}
+sqrt(sum(mas.cercano[1:8]^2))
+```
+
+que realmente no es muy cercano al origen. 
+
+¿Y si tenemos una muestra grande de entrenamiento? ¿Podremos mejorar?
+Veamos que pasa si aumentamos la muestra a $n=10000$ (cien mil de datos de entrenamiento):
+
+
+```{r,}
+sims.1 <- lapply(1:8, function(i){runif(100000, -1, 1)})
+dat <- data.frame(Reduce(cbind, sims.1))
+dat$y <- apply(dat, 1, fun.1)
+
+dist.origen <- apply(dat[,1:8], 1, function(x){sqrt(sum(x^2))})
+mas.cercano.indice <- which.min(dist.origen)
+mas.cercano <- dat[mas.cercano.indice, ]
+mas.cercano
+```
+
+Conseguimos resultados un poco mejores, pero de cualquier forma quedamos
+bastante lejos del verdadero valor!
+
+¿Qué pasa si la dimensión es más alta? Por ejemplo, pongamos $p=15$, usando
+cien mil de datos de entrenamiento. Entonces otra vez obtenemos resultados pésimos:
+
+```{r}
+sims.1 <- lapply(1:15, function(i){runif(1e5, -1, 1)})
+dat <- data.frame(Reduce(cbind, sims.1))
+dat$y <- apply(dat, 1, fun.1)
+
+dist.origen <- apply(dat[,1:15], 1, function(x){sqrt(sum(x^2))})
+mas.cercano.indice <- which.min(dist.origen)
+mas.cercano <- dat[mas.cercano.indice, ]
+mas.cercano
+```
+
+### Segundo problema
+
+
+Consideramos ahora un segundo ejemplo. Ahora queremos hacer predicciones
+para $$y=f(x)=\frac{1}{2}(1+x_1)^3.$$ Empezamos con $n=100$ y $p=40$.
+
+
+```{r}
+fun.2 <- function(x){
+  0.5*(1+x[1])^3
+}
+set.seed(280572)
+sims.1 <- lapply(1:10, function(i){runif(500, -1, 1)})
+dat <- data.frame(Reduce(cbind, sims.1))
+dat$y <- apply(dat, 1, fun.2)
+
+dist.origen <- apply(dat[,1:10], 1, function(x){sqrt(sum(x^2))})
+mas.cercano.indice <- which.min(dist.origen)
+mas.cercano <- dat[mas.cercano.indice, ]
+mas.cercano
+mas.cercano$y
+```
+
+Y otra corrida
+```{r}
+
+sims.1 <- lapply(1:10, function(i){runif(500, -1, 1)})
+dat <- data.frame(Reduce(cbind, sims.1))
+dat$y <- apply(dat, 1, fun.2)
+
+dist.origen <- apply(dat[,1:10], 1, function(x){sqrt(sum(x^2))})
+mas.cercano.indice <- which.min(dist.origen)
+mas.cercano <- dat[mas.cercano.indice, ]
+mas.cercano
+mas.cercano$y
+```
+
+Y vemos que otra vez, obtenemos errores considerables de predicción. En este caso,
+el problema parece ser la varianza más que el sesgo, como vimos en las dos corridas
+mostradas.
+
+Sin embargo, podríamos intentar usar mínimos cuadrados con un modelo polinomial.
+Haríamos entonces:
+
+```{r}
+dat.1 <- cbind(dat[,1:10], dat[,1:10]^2, dat[,1:10]^3)
+names(dat.1) <- c(paste0('X_', 1:10), paste0('X2_',1:10), paste0('X3_', 1:10))
+dat.1$y <- dat$y
+mod.1 <- lm(y ~ . , data=dat.1)
+coef(mod.1)[1]
+```
+
+Y obtenemos una predicción muy buena.
+
+
+Análisis sesgo-varianza
+----------
+
+Ahora hacemos el análisis sesgo varianza para dos métodos: 1-vecino más cercano
+y regresión lineal, y vemos qué pasa cuando la dimensión cambia.
+
+Para nuestra primera función,
+
+```{r}
+library(plyr)
+library(dplyr)
+library(tidyr)
+preds.1 <- rdply(400, function(i){
+  salida.1 <- ldply(c(2:10,12,15), function(p){
+  sims.1 <- lapply(1:p, function(i){runif(50, -1, 1)})
+  dat <- data.frame(Reduce(cbind, sims.1))
+  dat$y <- apply(dat, 1, fun.1)
+
+  dist.origen <- apply(dat[,1:p], 1, function(x){sqrt(sum(x^2))})
+  mas.cercano.indice <- which.min(dist.origen)
+  mas.cercano <- dat[mas.cercano.indice, ]
+  data.frame(p=p, y=mas.cercano$y)
+  })
+  salida.1
+})
+
+preds.res <- preds.1 %>% 
+  group_by(p) %>%
+  dplyr::summarise(esperado = mean(y), var = var(y), ecm = mean((y-1)^2)) %>%
+  mutate(sesgo = (esperado-1)^2)
+
+preds.res.1 <- preds.res %>%
+  gather(variable,valor, esperado:sesgo) %>%
+  filter(variable!='esperado')
+
+ggplot(preds.res.1, aes(x=p, y=valor, colour=variable, group=variable)) +
+  geom_line() + geom_point()
+```
+
+**Donde vemos que el problema principal es sesgo**.
+  
+  En nuestros segundo ejemplo, sin embargo, el problema más grave es **varianza**:
+
+
+```{r, cache=T}
+set.seed(28)
+preds.1 <- rdply(1000, function(i){
+  salida.1 <- ldply(c(2:10,12,15), function(p){
+  sims.1 <- lapply(1:p, function(i){runif(60, -1, 1)})
+  dat <- data.frame(Reduce(cbind, sims.1))
+  dat$y <- apply(dat, 1, fun.2)
+
+  dist.origen <- apply(dat[,1:p], 1, function(x){sqrt(sum(x^2))})
+  mas.cercano.indice <- which.min(dist.origen)
+  mas.cercano <- dat[mas.cercano.indice, ]
+  data.frame(p=p, y=mas.cercano$y)
+  })
+  salida.1
+})
+
+preds.res <- preds.1 %>% 
+  group_by(p) %>%
+  dplyr::summarise(esperado = mean(y), var = var(y), ecm = mean((y-0.5)^2)) %>%
+  mutate(sesgo = (esperado-0.5)^2)
+
+preds.res.1 <- preds.res %>%
+  gather(variable,valor, esperado:sesgo) %>%
+  filter(variable!='esperado')
+
+ggplot(preds.res.1, aes(x=p, y=valor, colour=variable, group=variable)) +
+  geom_line() + geom_point()
+```
+
+Finalmente, ¿cómo se comporta mínimos cuadrados? Mínimos cuadrados
+tiene algo de sesgo (debido a que la función $f$ es cúbica, no lineal),
+pero no es muy grave. La varianza es muy baja y crece muy poco cuando
+la dimensión aumenta. 
+
+
+```{r}
+set.seed(2805)
+preds.1 <- rdply(1000, function(i){
+  salida.1 <- ldply(c(2:10,12,15), function(p){
+  sims.1 <- lapply(1:p, function(i){runif(60, -1, 1)})
+  dat <- data.frame(Reduce(cbind, sims.1))
+  dat$y <- apply(dat, 1, fun.2)
+  mod.1 <- lm(y~., data = dat)
+  data.frame(p=p, y=coef(mod.1)[1])
+  })
+  salida.1
+})
+
+preds.res <- preds.1 %>% 
+  group_by(p) %>%
+  dplyr::summarise(esperado = mean(y), var = var(y), ecm = mean((y-0.5)^2)) %>%
+  mutate(sesgo = (esperado-0.5)^2)
+
+preds.res.1 <- preds.res %>%
+  gather(variable,valor, esperado:sesgo) %>%
+  filter(variable!='esperado')
+
+ggplot(preds.res.1, aes(x=p, y=valor, colour=variable, group=variable)) +
+  geom_line() + geom_point() + scale_y_sqrt()
+```
+
+
