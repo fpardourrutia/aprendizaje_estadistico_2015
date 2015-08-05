@@ -1,0 +1,297 @@
+---
+title: "Introducción a R para análisis de datos"
+author: "Felipe González"
+date: Otoño 2015
+output: 
+  html_document:
+    theme: united
+---
+
+Esta no es una introducción general a R. En esta parte veremos más las partes
+necesarias para ser eficientes en el análisis de datos. Las principales tareas
+de análisis de datos son:
+
+- Cargar y manejar archivos con datos
+- Manipular, limpiar y reacomodar datos
+- Calcular agregados de particiones de los datos
+- Graficar
+- Modelos
+
+### Introducción
+
+La mejor manera de usar R para análisis de datos es aprovechando la gran
+cantidad de paquetes de alta calidad que aportan funcionalidad adicional. Desde
+Rstudio podemos instalar paquetes (Tools - > Install packages). Una vez instalados,
+podemos cargarlos a nuestra sesión de R mediante `library`. Por ejemplo,
+para cargar el paquete `readr` hacemos
+
+```{r}
+library(readr)
+print(read_csv)
+```
+
+`read_csv` es una función que aporta el paquete `readr`. 
+
+Los paquetes básicos que necesitaremos son:
+
+1. `readr` y `readxl` para leer datos
+2.  `tidyr` manipulación de datos
+3. `lubridate` para  manejar fechas
+4. `dplyr` filtros, cálculos y agregación de datos.
+5. `ggplot2` graficar
+
+```{r}
+library(lubridate)
+library(ggplot2)
+library(readr)
+library(tidyr)
+library(dplyr)
+```
+
+### Cargar datos
+
+Trabajaremos con una versión modificada de los [datos](https://www.kaggle.com/c/bike-sharing-demand) de uso de bicicletas públicas en Washington.
+
+Cargamos  el paquete (aunque no es necesario porque lo hicimos arriba) e intentamos leer unos datos (las primeras diez líneas):
+
+
+```{r}
+library(readr)
+bikes <- read_csv(file = '../../datos/bike_demand/train_bike.csv', n_max=10)
+problems(bikes)
+```
+
+Nótese que no pudo leer el primer campo de fecha-hora. Podemos cambiar
+el tipo de la primera columna, y decirle explícitamente que us fecha-hora, como un argumento
+adicional a la función `read_csv`:
+
+```{r}
+bikes <- read_csv(file = '../../datos/bike_demand/train_bike.csv', 
+                col_types = list('datetime'=col_datetime()))
+bikes 
+print(bikes, n = 13)
+```
+
+donde vemos que `bikes` es un `data frame`de más de 10 mil renglones y 12 columnas.
+
+
+Recuerda que puedes pedir la ayuda de una función con el signo de interrogación:
+
+```{r}
+?read_csv
+```
+
+
+### Data frames y visualización
+
+El `data frame` es la estructura básica para trabajar con tablas de datos.
+Un `data frame` es una tabla cuadrada, pero a diferencia de una matriz, sus columnas
+pueden ser de distintos tipos. En nuestro ejemplo, tenemos columnas de datetime, texto, 
+enteras y de punto flotante (dbl - doble precisión)
+
+Usamos funciones de `dplyr` para extraer columnas (`select`), reglones(`filter`), 
+crear nuevas variables (`mutate`), agrupar (`group_by`) y resumir (`summarise`).
+
+Primero vamos a extraer algunas columnas:
+
+```{r}
+conteos_hora <- bikes %>% select(datetime, weather_desc, count)
+conteos_hora
+```
+
+Podemos también crear nuevas variables:
+
+```{r}
+conteos <- conteos_hora %>% mutate(hora = hour(datetime), fecha = as.Date(datetime))
+conteos
+```
+
+
+Podemos filtrar un solo día, por ejemplo haciendo
+
+```{r}
+conteos_enero_3 <- conteos %>% filter(fecha == as.Date('2012-01-03'))
+conteos_enero_3
+```
+
+Y ahora usamos ggplot para graficar:
+
+```{r}
+ggplot(conteos_enero_3, aes(x = hora, y = count)) + geom_line() 
+ggplot(conteos_enero_3, aes(x = hora, y = count)) + geom_line()  + geom_point()
+```
+
+Supongamos que ahora queremos graficar todos los primeros cinco días de enero. Podríamos hacer
+
+```{r}
+conteo_ene <- conteos %>% filter(fecha >= as.Date('2012-01-01'), fecha <= as.Date('2012-01-05'))
+ggplot(conteo_ene, aes(x=hora, y=count, colour=as.character(fecha), group=fecha)) + geom_line()
+```
+
+Hay dos patrones de uso distintos en esta gráfica. Quizá podríamos ver qué sucede cada día de la semana?
+
+Regresamos entonces a los datos completos. Primero creamos una variable para el día de la semana:
+
+```{r}
+conteos_dsem <- conteos %>% mutate(dia_semana = weekdays(fecha))
+```
+
+Y nos gustaría promediar el conteo de uso según el día de la semana. Para hacer esto, primero
+agrupamos por `dia_semana` y luego promediamos:
+
+```{r}
+conteo_agrupada <- conteos_dsem %>% group_by(dia_semana, hora)
+conteo_agrupada
+media_dia_hora <- conteo_agrupada %>% summarise(count_media = mean(count))
+media_dia_hora
+```
+
+Podemos hacerlo de un golpe encadenando las operaciones:
+```{r}
+media_dia_hora <- conteos_dsem %>% 
+                      group_by(dia_semana, hora) %>%
+                      summarise(count_media = mean(count))
+media_dia_hora
+```
+
+
+Y ahora graficamos:
+
+```{r}
+ggplot(media_dia_hora, aes(x = hora, y=count_media, colour=dia_semana)) + geom_line(size=1.2)
+```
+
+```{r}
+media_dia_hora$dia_semana <- factor(media_dia_hora$dia_semana, levels=c('Monday','Tuesday','Wednesday','Thursday','Friday','Saturday','Sunday'))
+ggplot(media_dia_hora, aes(x = hora, y=count_media, colour=dia_semana)) + geom_line(size=1.2) +
+  ggtitle('Promedio de uso por día de semana y hora')
+```
+
+Donde efectivamente vemos que el patrón más claro de diferencia entre los primeros días de enero estaba
+relacionado con el día de la semana.
+
+Una operación útil es añadir columnas agregadas a los datos originales. Por ejemplo,
+supongamos que estamos interesados en encontrar días de la semana con demanda atípicamente baja a las 8 de la mañana.
+Sabemos que hay variación fuerte dependiendo del día de la semana a las 8 de la mañana, así que queremos comparar con el promedio apropiado. Los promedios por día de la semana a las ocho de la mañana son:
+
+```{r}
+conteos_dsem %>% 
+  filter(hora == 8) %>%
+  group_by(dia_semana) %>%
+  summarise(media_count = mean(count))
+```
+
+Para comparar los conteos.
+```{r}
+conteos_8 <- conteos_dsem %>% filter(hora==8)
+conteos_8
+```
+
+La idea es ahora usar `group_by` pero seguido de `mutate`, y no de `summarise`:
+
+```{r}
+conteos_8 %>% 
+  group_by(dia_semana) %>%
+  mutate(media_count = mean(count))
+```
+
+Compara la columna media_count de esta tabla con la de la tabla anterior.
+
+
+```{r}
+indices_8 <- conteos_8 %>% 
+  group_by(dia_semana) %>%
+  mutate(media_count = mean(count)) %>%
+  ungroup() %>%
+  mutate(indice = count/media_count)
+indices_8
+```
+
+```{r}
+print(arrange(indices_8, indice),n =10)
+print(arrange(indices_8, desc(indice)),n =10)
+```
+
+¿A qué se deben estas variaciones tan grandes? Podemos investigar más regresando con más variables:
+
+```{r}
+bikes_2 <-bikes %>% 
+  mutate(hora = hour(datetime), fecha = as.Date(datetime), dia_sem = weekdays(fecha))
+
+indices_8 <- bikes_2 %>%
+  select(fecha, hora, dia_sem, holiday, temp, count, weather_desc) %>%
+  filter(hora == 8) %>%
+  group_by(dia_sem) %>%
+  mutate(media = mean(count), indice = count/media)
+head(indices_8)
+tail(indices_8)
+```
+
+Ahora vemos los índices más grandes y los más chicos. Nótese que hacemos ungroup para que 
+no ordene dentro de grupos definidos anteriormente.
+
+```{r}
+indices_8 %>% ungroup() %>% arrange(indice) %>% print(n = 20)
+indices_8 %>% ungroup() %>% arrange(desc(indice)) %>% print(n = 20)
+```  
+  
+Nótese que los días de menos demanda son en 2011 y los de mayor en 2012. Esto probablemente
+indica que con el tiempo la demanda ha crecido, y nuestro análisis no encontró lo que queríamos!
+Así que vamos a entender primero esta tendencia:
+
+```{r}
+resumen_dia <- bikes_2 %>% group_by(fecha, dia_sem) %>%
+  summarise(count_dia = sum(count)) 
+
+ggplot(resumen_dia, aes(x=fecha, y=count_dia)) + geom_point() + geom_line() +
+  facet_wrap(~dia_sem) + geom_smooth()
+```
+
+La diferencia en el timepo es considerable, y además descubrimos un patrón estacional (que puede estar ligado
+a la temperatura o a otras actividades). En este punto es buena idea comenzar a modelar, pero por el momento
+podemos separar los años:
+
+```{r}
+indices_8 <- bikes_2 %>%
+  select(fecha, hora, dia_sem, holiday, temp, count, weather_desc) %>%
+  filter(hora == 8) %>%
+  mutate(año = year(fecha)) %>%
+  group_by(dia_sem, año) %>%
+  mutate(media = mean(count), indice = count/media)
+indices_8 %>% ungroup() %>% arrange(indice) %>% print(n = 20)
+indices_8 %>% ungroup() %>% arrange(desc(indice)) %>% print(n = 20)
+```  
+  
+Ahora tenemos algunas hipótesis: 
+
+- los días más bajos son días de la semana feriados,
+y fines de semana con temperatura baja y/o mal clima?
+- los días más altos tienden a ser del fin de semana, con buen clima? Esto hay que investigarlo más.
+
+### Más de manipulación
+
+Ahora intentamos otra pregunta: cómo varían temperatura y temperatura aparente? Intentamos graficar un mes:
+
+```{r}
+dia_temps <- bikes_2 %>% filter(year(fecha)==2012, month(fecha)==3 ) %>%
+  select(datetime, fecha, hora, temp, atemp)
+dia_temps
+```
+
+Lo mejor para hacer esta gráfica es **trasponer** temp, atemp y humidity:
+
+```{r}
+temps_larga <- dia_temps %>%
+  gather(variable, valor, temp:atemp)
+temps_larga
+```
+
+```{r}
+ggplot(temps_larga, 
+       aes(x=datetime, y=valor, colour=variable, group=variable)) + geom_point() + geom_line()
+
+```
+
+
+
+
