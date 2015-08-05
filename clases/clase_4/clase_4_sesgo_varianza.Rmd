@@ -11,7 +11,6 @@ Ilustraremos la descomposición de sesgo y varianza con datos simulados. Usar da
 en este ejemplo es importante, pues nos permite ver qué sucede con *distintas muestras de entrenamiento*,
 como vimos en la teoría.
 
-Usaremos los datos que vimos en ajuste de curvas.
 
 ```{r setup, include = FALSE}
 library(knitr)
@@ -22,6 +21,7 @@ options(digits=2)
 ```
 
 ### Datos
+Usaremos los datos que vimos en la clase 2:
 
 
 ```{r }
@@ -34,8 +34,8 @@ simular  <- function(n_muestra, sd){
   data.frame(x, y)
 }
 set.seed(28) 
-sd_mod <- 0.8
-datos <- simular(20, sd_mod)
+sd_mod <- 0.4
+datos <- simular(30, sd_mod)
 datos
 ```
 
@@ -70,13 +70,14 @@ ggplot(dat, aes(x=x, y=valor, linetype=variable )) +
     annotate("point",x=datos$x, y=datos$y, colour="black")
 ```
 
+### ¿Cómo varían los modelos según la muestra de entrenamiento?
 
-Consideremos que es lo que sucede en un punto como $x_0=0.2$ cuando ajustamos estos
-datos con polinomios de distinto grado. Tenemos que correr este ejemplo con varias muestras
-de entrenamiento (de temaño fijo). Por ejemplo, en la siguiente gráfica vemos como parece
-haber más sensibilidad de los modelos de grado alto a la muestra de entrenamiento.
+Ahora tenemos que correr este ejemplo con varias muestras
+de entrenamiento (de tamaño fijo). Por ejemplo, en la siguiente gráfica vemos como parece
+haber más sensibilidad de los modelos de grado alto a la muestra de entrenamiento. También vemos que los modelos de grado bajo tienen
+sesgo (están consistententemente alejados del verdadero valor en la curva punteada): 
 
-```{r }
+```{r, warning=FALSE}
 
 datos_graf_lista <- function(){
   datos <- simular(30, sd_mod)
@@ -103,13 +104,14 @@ ggplot(dat,
     ylim(c(-3,3)) 
 ```
 
-Podemos calcular media y desviación estándar en algunos puntos del eje x. 
+### Sesgo y varianza en la predicción.
 
+En primer lugar, extraemos predicciones en algunos puntos del eje x, y juntamos todas las predicciones.
 
 ```{r}
 # muestra de prueba fija.
-x_0 <- c(0.1, 0.4,0.75)
-salida_sim_lista <- lapply(1:1000, function(i){
+x_0 <- c(0.15, 0.4,0.9)
+salida_sim_lista <- lapply(1:500, function(i){
     # simular muestra de entrenamiento
     datos <- simular(n_muestra = 30, sd_mod)
     # ajustar polinomios
@@ -122,11 +124,36 @@ salida_sim_lista <- lapply(1:1000, function(i){
     df
 })
 salida_sim <- rbind_all(salida_sim_lista)
-salida <- salida_sim %>% group_by(grado, x) %>%
-  dplyr::summarise(media = mean(f-preds), sd = sd(preds))
-#ggplot(salida_sim, aes(x=factor(grado), y=preds-f)) +geom_boxplot()+facet_wrap(~x)
-ggplot(salida, aes(x=factor(grado), y = media, ymin=media-sd, ymax=media+sd)) +
-  geom_point() + geom_linerange() + facet_wrap(~x)
 ```
 
+Esta tabla tiene en `rep` el número de simulación, en `grado` el
+grado del polinomio ajustado, en `x` el valor en el eje x, en `f`
+el verdadero valor en `x` correspondiente, y en `preds` la predicción del modelo.
+
+```{r}
+head(salida_sim)
+```
+
+Con estos datos podemos calcular error de predicción en un punto, junto
+con el sesgo y la varianza en ese punto. Para hacer esto
+promediamos sobre las repeticiones:
+
+
+```{r}
+salida <- salida_sim %>% group_by(grado, x, f) %>%
+  summarise(media = mean(preds), varianza = var(preds),
+                   error = mean((f-preds)^2)) %>%
+  mutate(sesgo2 = (f-media)^2)
+salida_v <- salida %>% select(grado, x, varianza:sesgo2) %>%
+  gather(componente, valor, varianza:sesgo2)
+ggplot(filter(salida_v, grado <= 8), 
+       aes(x=grado, y=valor, colour=componente )) +
+  geom_point(size=3) +  facet_wrap(~x) + geom_line(size=1.1) 
+```
+
+En esta gráfica vemos como la suma de sesgo2 y varianza da el error cuadrático (en cada punto). Adicionalmente, vemos como el error alto
+se debe a distintas razones para grado bajo que para grado alto:
+
+ - Para grado alto, el problema tiende a ser la varianza.
+ - Para grado bajo, el problema tiende a ser el sesgo.
 
