@@ -1,0 +1,132 @@
+---
+title: "Error cuadrático: sesgo y varianza en predicción"
+author: "Felipe González"
+date: Otoño 2015
+output: 
+  html_document: 
+    theme: united
+---
+
+Ilustraremos la descomposición de sesgo y varianza con datos simulados. Usar datos simulados
+en este ejemplo es importante, pues nos permite ver qué sucede con *distintas muestras de entrenamiento*,
+como vimos en la teoría.
+
+Usaremos los datos que vimos en ajuste de curvas.
+
+```{r setup, include = FALSE}
+library(knitr)
+library(ggplot2)
+library(dplyr)
+library(tidyr)
+options(digits=2)
+```
+
+### Datos
+
+
+```{r }
+f <- function(x){
+  sin(2*pi*x) + cos(2*pi*x)
+}
+simular  <- function(n_muestra, sd){
+  x <- runif(n_muestra, 0, 1) 
+  y <- f(x) + rnorm(length(x), mean = 0, sd = sd_mod)
+  data.frame(x, y)
+}
+set.seed(28) 
+sd_mod <- 0.8
+datos <- simular(20, sd_mod)
+datos
+```
+
+```{r}
+x_plot <- seq(0,1,0.01)
+y_plot <- f(x_plot)
+ggplot(datos, aes(x=x, y=y), colour='red')+
+  geom_point() +
+  annotate("line", x=x_plot, y=y_plot, linetype="dotted")
+```
+
+Para una muestra de entrenamiento, obtenemos algo como sigue, como vimos en la clase 2:
+
+```{r }
+ajuste_mod <- function(datos, m){
+  lm(y ~ poly(x, degree=m, raw = TRUE), data = datos) 
+}
+modelos <- lapply(1:9, function(i) ajuste_mod(datos, i))
+datos_graf_lista <- lapply(1:9, function(i){
+   df <- data.frame(grado = i,  x=x_plot , 
+        prediccion = predict(modelos[[i]], newdata = data.frame(x=x_plot)),
+        esperado = y_plot)
+    df   
+})
+datos_graf <- rbind_all(datos_graf_lista)
+
+dat <- datos_graf %>% gather(variable, valor, prediccion:esperado)
+ggplot(dat, aes(x=x, y=valor, linetype=variable )) + 
+    geom_line() +
+    facet_wrap(~grado) + 
+    ylim(c(-3,3)) + 
+    annotate("point",x=datos$x, y=datos$y, colour="black")
+```
+
+
+Consideremos que es lo que sucede en un punto como $x_0=0.2$ cuando ajustamos estos
+datos con polinomios de distinto grado. Tenemos que correr este ejemplo con varias muestras
+de entrenamiento (de temaño fijo). Por ejemplo, en la siguiente gráfica vemos como parece
+haber más sensibilidad de los modelos de grado alto a la muestra de entrenamiento.
+
+```{r }
+
+datos_graf_lista <- function(){
+  datos <- simular(30, sd_mod)
+  modelos <- lapply(1:9, function(i) ajuste_mod(datos, i))
+  salida <- lapply(1:9, function(i){
+    df <- data.frame(grado = i,  x=x_plot , 
+        prediccion = predict(modelos[[i]], newdata = data.frame(x=x_plot)),
+        esperado = y_plot)
+    df   
+  })
+  salida}
+datos_graf <- lapply(1:5, function(i) { 
+  dat <- rbind_all(datos_graf_lista())
+  dat$rep <- i
+  dat
+  }) %>% rbind_all
+
+dat <- datos_graf %>% gather(variable, valor, prediccion:esperado)
+ggplot(dat, 
+       aes(x=x, y=valor,  linetype = variable, colour=variable,
+           group=interaction(rep, grado, variable) )) + 
+    geom_line(alpha=1) +
+    facet_wrap(~grado) + 
+    ylim(c(-3,3)) 
+```
+
+Podemos calcular media y desviación estándar en algunos puntos del eje x. 
+
+
+```{r}
+# muestra de prueba fija.
+x_0 <- c(0.1, 0.4,0.75)
+salida_sim_lista <- lapply(1:1000, function(i){
+    # simular muestra de entrenamiento
+    datos <- simular(n_muestra = 30, sd_mod)
+    # ajustar polinomios
+    preds <- lapply(1:9, function(m){
+            mod <- lm(y ~ poly(x, degree=m, raw = TRUE), data = datos)
+            data.frame(grado =m, x=x_0, f = f(x_0),preds = predict(mod, data.frame(x=x_0)))
+    })
+    df <- rbind_all(preds)
+    df$rep <- i
+    df
+})
+salida_sim <- rbind_all(salida_sim_lista)
+salida <- salida_sim %>% group_by(grado, x) %>%
+  dplyr::summarise(media = mean(f-preds), sd = sd(preds))
+#ggplot(salida_sim, aes(x=factor(grado), y=preds-f)) +geom_boxplot()+facet_wrap(~x)
+ggplot(salida, aes(x=factor(grado), y = media, ymin=media-sd, ymax=media+sd)) +
+  geom_point() + geom_linerange() + facet_wrap(~x)
+```
+
+
