@@ -7,16 +7,15 @@ output:
     theme: united
 ---
 
+### Datos
 
-
-```{r}
+```{r, message=FALSE}
 library(kknn)
 library(ggplot2)
 library(dplyr)
 library(tidyr)
 options(digits=2)
 ```
-
 
 
 
@@ -99,20 +98,18 @@ graf_out$fitted <- predict(modelo_lineal, newdata = grid_1)
 print(graf_clasificador(graf_out))
 ```
 
-Ahora calculamos el error de entrenamiento y prueba:
-```{r}
-mean((sim_entrena$color - fitted(modelo_lineal))^2)
-```
+¿Por qué la frontera de clasificación entre las dos clases es una recta? La respuesta
+es que que la regla $\hat{y}=0.5$ es un hiperplano, pues del lado izquierdo hay una función
+lineal de $x.1$ y $x.2$.
+
+Ahora calculamos tasas de clasificación incorrecta de entrenamiento y prueba:
 
 ```{r}
+reg_entrena <- mean(sim_entrena$color != as.numeric(fitted(modelo_lineal)>0.5))
 preds <- predict(modelo_lineal, newdata = sim_prueba)
-mean((sim_prueba$color - preds)^2)
-```
-
-O si queremos, podemos calcular las tasas de clasificación incorrecta:
-```{r}
-mean(sim_entrena$color != as.numeric(fitted(modelo_lineal)>0.5))
-mean(sim_prueba$color != as.numeric(preds > 0.5))
+reg_prueba <- mean(sim_prueba$color != as.numeric(preds > 0.5))
+reg_entrena
+reg_prueba
 ```
 
 ### k-vecinos más cercanos
@@ -128,13 +125,12 @@ print(graf_clasificador(graf_out))
 ```
 
 
-
 Si usamos menos vecinos, entonces el clasificador es aún más complicado:
 
 
 ```{r}
 vmc <- kknn(color ~ x.1 + x.2, 
-	train = sim_entrena, test = grid_1, k = 20, kernel='rectangular') # encontrar vecinos más cercanos en grid
+	train = sim_entrena, test = grid_1, k = 2, kernel='rectangular') # encontrar vecinos más cercanos en grid
 graf_out$fitted <- predict(vmc) 
 print(graf_clasificador(graf_out))
 ```
@@ -157,10 +153,14 @@ preds <- predict(vmc_prueba)
 mean(sim_prueba$color != as.numeric(preds > 0.5))
 ```
 
+- Discute los errores de predicción que acabas de obtener. ¿Cuál parece ser el mejor
+clasificador hasta ahora?
+
 
 ### Afinando el parámetro de k-vmc
 
-Podemos investigar más el modelo más apropiado para estos datos. 
+Podemos investigar más el número de vecinos más apropiado para estos datos:
+
 
 
 ```{r}
@@ -182,6 +182,14 @@ calcular_errores <- function(dat){
 
 errores_vmc <- do(num_vecinos, calcular_errores(.)) %>%
   gather(tipo, error, prueba:entrena)
+data.frame(errores_vmc)
 ggplot(errores_vmc, aes(x = factor(floor(500/k)), y=error, colour=tipo, group=tipo)) + 
   geom_point(size=3) + geom_line() + xlab('Grados de libertad')
 ```
+
+- En esta última gráfica vemos que una solución de 10-33 grados de libertad (que corresponde
+ a unos 15-50 vecinos) es la que da mejor error de prueba (alrededor de 25\%). 
+- Esta tasa supera a la del modelo lineal (que era alrededor del 25%) 
+ - Nótese también
+ que el error de entrenamiento para 1 vecino más cercano es de 0. ¿Por qué?
+ - ¿Crees que se puede obtener una tasa de error de predicción igual o muy cercana a 0 para este problema? ¿Por qué?
