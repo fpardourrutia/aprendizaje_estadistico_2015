@@ -10,7 +10,8 @@ Todos los scripts y notas de clase se preparán a partir de una instalación est
 Para instalar el software (se requieren al menos 4Gb de memoria):
 
 - Instala [Vagrant](https://www.vagrantup.com) y [Virtualbox](https://www.virtualbox.org)
-- Baja el archivo zip (lado derecho) en [el repositorio de la clase](https://github.com/felipegonzalez/aprendizaje_estadistico_2015) y desempaquétalo.
+- Baja el [archivo zip](https://dl.dropboxusercontent.com/u/161342/ae2015/aprendizaje_estadistico_2015_vagrant.zip?dl=1) con la configuración de la máquina virtual y 
+desempaquétalo.
 - En una línea de comandos (terminal en Mac, dentro de Accesorios en Windows) corre desde esta nueva carpeta el comando:
 ```
 vagrant up
