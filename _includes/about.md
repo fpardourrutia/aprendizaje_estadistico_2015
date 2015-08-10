@@ -22,7 +22,7 @@ El Aprendizaje Estadístico trata de cómo aprender de conjuntos de datos: cómo
   Estadística Matemática o Estadística Aplicada I.
 
 ### Evaluación
-  Dos examenes parciales, cada uno con una componente teórica (para resolver en clase) y una práctica (para resolver en casa).
+  Dos examenes parciales, cada uno con una componente teórica (para resolver en clase) y una práctica (para resolver en casa). El examen final es la presentación de un proyecto (30%).
 
 ### Referencias y ligas útiles 
 
