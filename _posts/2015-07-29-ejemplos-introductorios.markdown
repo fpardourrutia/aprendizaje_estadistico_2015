@@ -1,6 +1,6 @@
 ---
 layout: post
-title:  'Clase 1: Ejemplos introductorios: arpendizaje estadístico'
+title:  'Clase 1: Ejemplos introductorios: aprendizaje estadístico'
 categories: clase
 ---
 
