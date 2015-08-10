@@ -30,7 +30,7 @@ def subir_dropbox(archivo):
 def crear_post(liga, titulo = 'post'):
     ahora = datetime.datetime.now()
     liga_down = liga.split('?')[0]+'?dl=1'
-    posts_dir = '/Users/felipegonzalez/Repositorios/sitio_aprendizaje_estadistico_2015/_posts/'
+    posts_dir = '/Users/felipegonzalez/Repositorios/sitio_aprendizaje_estadistico_2015/_drafts/'
     filename = str(ahora.year)+'-'+str(ahora.month).zfill(2)+'-'+str(ahora.day).zfill(2)+'-'+titulo+'.markdown'
     print 'Crear post: ' + posts_dir+filename
 
