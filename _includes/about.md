@@ -4,8 +4,8 @@ El Aprendizaje Estadístico trata de cómo aprender de conjuntos de datos: cómo
 
 
 ### Temas 
-- Métodos lineales para problemas de regresión, regularización.
-- Métodos lineales para problemas de clasificación, regularización.
+- Métodos lineales para problemas de regresión y clasificación
+- Regularización: ridge y lasso.
 - Extensiones de modelos lineales.
 - Modelos aditivos y árboles
 - Redes neuronales
