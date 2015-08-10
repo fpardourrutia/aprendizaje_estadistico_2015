@@ -3,7 +3,7 @@ title: "Vecinos más cercanos en dimensión alta"
 author: "Felipe González"
 date: Otoño 2015
 output: 
-  html_document: 
+  html_document:
     theme: united
 ---
 

@@ -289,7 +289,6 @@ temps_larga
 ```{r}
 ggplot(temps_larga, 
        aes(x=datetime, y=valor, colour=variable, group=variable)) + geom_point() + geom_line()
-
 ```
 
 

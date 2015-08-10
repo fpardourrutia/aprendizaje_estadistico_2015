@@ -161,7 +161,7 @@ que concentrarnos en el grupo de correos que no contiene la palabra "remove". Po
 
 ```{r}
 ggplot(filter(spam_train, wfremove==0),
-       aes(x=wfremove, group=spam, colour=as.character(spam))) + geom_density(adjust = 0.5)
+       aes(x = wfremove, group = spam, colour=as.character(spam))) + geom_density()
 ```
 
 ¿Qué tal la frecuencia de ocurrencia de la palabra george?
@@ -176,6 +176,7 @@ Vemos que si cortamos
 
 ```{r}
 grupo <- filter(spam_train, wfremove == 0)
+grupo %>% group_by(spam) %>% tally
 grupo %>% group_by(wfgeorge>1, spam) %>% tally %>%
   group_by(`wfgeorge > 1`) %>% mutate(prop = round(n/sum(n),2))
 ```
@@ -226,9 +227,9 @@ Hay varias preguntas que podemos hacer aquí:
 
 #### ¿Qué tan bueno es nuestro algoritmo?
 
-Nótese que según el árbol de arriba, clasificamos correctamente al menos al 87% de
+Nótese que según el árbol de arriba, clasificamos correctamente al menos al 79% de
 todos los casos que teníamos. Para calcular la tasa exacta de clasificados correctamente, tendríamos
-que ponderar la tasa de correctos de cada nodo con 
+que ponderar la tasa de correctos de cada nodo terminal con el número de nodos que contiene.
 
 Sin embargo, **¿cómo podemos estar seguros de que el algoritmo se va a desempeñar
 de manera similar para emails que no hemos visto?** Es decir, ¿cómo entender si este
