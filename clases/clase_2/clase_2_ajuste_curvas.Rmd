@@ -222,7 +222,8 @@ En esta última gráfica vemos un patrón que resultará ser usual:
 
 ### Error de entrenamiento y de prueba promediando sobre conjuntos de entrenamiento.
 
- Como ejercicio adicional, podemos preguntarnos cómo se comportan nuestros modelos ajustados en promedio sobre nuevas muestras generadas por el fenómeno que nos interesa. Abajo repetimos el 
+ Como ejercicio adicional, podemos preguntarnos si este ejemplo particular se ve así por la muestra de entrenamiento específica que obtuvimos.
+ Abajo repetimos el 
  proceso de arriba 300 veces: producimos  300 muestras de entrenamiento, ajustamos, y estimamos
  el error de predicción con la misma muestra de tamaño 1000:
 
