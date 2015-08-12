@@ -34,9 +34,9 @@ $$\mathcal{L} =\{ (x_i,y_i), i=1,2,\ldots, n\} $$
 f <- function(x){
   sin(2*pi*x) + cos(2*pi*x)
 }
-simular  <- function(n_muestra, sd){
+simular  <- function(n_muestra, s){
   x <- runif(n_muestra, 0, 1) 
-  y <- f(x) + rnorm(length(x), mean = 0, sd = sd_mod)
+  y <- f(x) + rnorm(length(x), mean = 0, sd = s)
   data.frame(x, y)
 }
 set.seed(28) 
@@ -107,7 +107,7 @@ mean((datos$y - ajustados)^2)
 
 ¿Cómo estimamos el error de predicción? Podemos simular una muestra grande para probar:
 ```{r}
-datos_prueba <- simular(1000, sd)
+datos_prueba <- simular(1000, sd_mod)
 predicciones <- predict(mod, newdata = datos_prueba)
 mean((datos_prueba$y - predicciones)^2)
 ```
@@ -161,31 +161,30 @@ ggplot(dat, aes(x=x, y=valor, linetype=variable )) +
 Calculamos los errores de entrenamiento:
 
 ```{r }
-errores.entrenamiento <- sapply(modelos, function(mod){ 
-    ajustados.entrenamiento <- fitted(mod)
-    (mean( (datos$y - ajustados.entrenamiento)^2))
+errores_entrenamiento <- sapply(modelos, function(mod){ 
+    ajustados_entrenamiento <- fitted(mod)
+    mean((datos$y - ajustados_entrenamiento)^2)
     })
-errores.entrenamiento
+errores_entrenamiento
 ```
 
-Y ahora estimamos el error de predicción con una muestra de prueba de tamaño 500:
+Y ahora estimamos el error de predicción con una muestra de prueba de tamaño 1000:
 
 ```{r }
-xp <- runif(1000)
-yp <-  sin(2*pi*xp) + cos(2*pi*xp) +  rnorm(length(xp), mean = 0, sd = sd_mod)
-errores.prueba <- sapply(modelos, function(mod){
-    ajustados.prueba <- predict(mod, newdata = data.frame(x=xp))
-    (mean( (yp - ajustados.prueba )^2))
+datos_prueba <- simular(1000, sd_mod)
+errores_prueba <- sapply(modelos, function(mod){
+    ajustados_prueba <- predict(mod, newdata = data.frame(x=datos_prueba$x))
+    (mean( (datos_prueba$y - ajustados_prueba )^2))
     })
-errores.prueba
+errores_prueba
 ```
 
 
 Y comparamos los dos errores:
 
 ```{r }
-errores <- data.frame(grado=1:9, entrenamiento=errores.entrenamiento, 
-    prueba = errores.prueba)
+errores <- data.frame(grado=1:9, entrenamiento=errores_entrenamiento, 
+    prueba = errores_prueba)
 errores.m <- errores %>% gather(var, valor, entrenamiento:prueba)
 graf.3 <- ggplot(errores.m, aes(x=grado, y=valor, linetype=var)) + geom_point()+
     geom_line() + ylab("Error") 
@@ -233,9 +232,9 @@ En esta última gráfica vemos un patrón que resultará ser usual:
 ```{r}
 # muestra de prueba fija.
 
-salida.sim.lista <- lapply(1:500, function(i){
+salida_lista <- lapply(1:500, function(i){
     # simular muestra de entrenamiento
-    datos <- simular(n_muestra = 30, sd_mod)
+    datos <- simular(20, sd_mod)
     # ajustar polinomios
     modelos <- lapply(1:9, function(m){
             mod <- lm(y ~ poly(x, degree=m, raw = TRUE), data = datos)
@@ -255,14 +254,15 @@ salida.sim.lista <- lapply(1:500, function(i){
     # regresar en un data.frame la evaluación de los modelos
     data.frame(grado = 1:9, error_entrenamiento, error_prueba, id=i)
 })
-salida.sim <- rbind_all(salida.sim.lista)
+sims <- rbind_all(salida_lista)
 
-resumen.sim <- salida.sim %>% 
+resumen_sims <- sims %>% 
   group_by(grado) %>%
-  dplyr::summarise(error_prueba=mean(error_prueba), error_entrenamiento = mean(error_entrenamiento)) %>%
+  summarise(error_prueba = mean(error_prueba), 
+            error_entrenamiento = mean(error_entrenamiento)) %>%
   gather(tipo, error, -grado)
   
-ggplot(resumen.sim,
+ggplot(resumen_sims,
      aes(x=grado, y=error, col=tipo, group=tipo)) + geom_line() +
     geom_point()
 ```
@@ -275,13 +275,14 @@ Podemos ver también estas curvas junto con los resultados para varias muestras 
 
 
 ```{r}
-salida_graf <- salida.sim %>% 
+salida_graf <- sims %>% 
   gather(tipo, error, error_entrenamiento:error_prueba)
 
-ggplot(filter(salida_graf, id<=100), aes(x=grado, y=error)) + 
-  geom_line(aes(group=interaction(id, tipo), colour=tipo),alpha=0.5) +
-  scale_y_log10(breaks=c(0.25,0.5,1,2,4,8,16)) +
-  geom_line(data=resumen.sim, aes(group=tipo))
+ggplot(filter(salida_graf, id <= 100), 
+       aes(x = grado, y = error)) + 
+  geom_line(aes(group = interaction(id, tipo), colour = tipo), alpha = 0.5) +
+  scale_y_log10(breaks = c(0.25,0.5,1,2,4,8,16)) +
+  geom_line(data = resumen_sims, aes(group = tipo))
 ```
 
 
