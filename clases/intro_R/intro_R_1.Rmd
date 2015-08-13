@@ -48,6 +48,87 @@ library(tidyr)
 library(dplyr)
 ```
 
+### Vectores 
+
+Aquí están unas operaciones básicas con vectores_
+
+```{r}
+a <- c(5, 2, 4.1, 7, 9.2)
+a
+a[1]
+a[2]
+a[2:4]
+```
+
+Las operaciones básicas con vectores son componente a componente:
+
+```{r}
+b <- a + 10
+b
+c <- sqrt(a)
+c
+a + c
+10*a
+a*c
+```
+
+Y podemos crear secuencias como sigue:
+```{r}
+ejemplo_1 <- 1:10
+ejemplo_1
+ejemplo_2 <- seq(0,1,0.25)
+ejemplo_2
+```
+
+
+
+
+
+Podemos también construir vectores de caracteres:
+
+```{r}
+frutas <- c('manzana','manzana','pera','plátano','fresa')
+frutas
+```
+
+Podemos juntar vectores del mismo tamaño en tablas, que se llaman `data.frame` en R. Por ejemplo:
+
+```{r}
+tabla <- data_frame(n = 1:5, valor = a, fruta = frutas) # la función data_frame de dplyr es más conveniente que data.frame de R base.
+tabla
+```
+
+Podemos extraer columnas o valores:
+
+```{r}
+tabla$valor
+tabla$valor[3]
+```
+
+Y podríamos extraer renglones con
+```{r}
+tabla[2,]
+```
+
+Sin embargo, nótese que esta operación regresa un `data.frame`, no un vector. Para procesar
+datos renglón a renglón preferimos usar otras técnicas que mostramos abajo.
+
+
+### Funciones
+
+Las funciones se definen y evalúan como sigue:
+
+```{r}
+ejemplo_fun <- function(x){
+  y <- x + 1
+  y^2 # este último valor es el que regresa la función
+}
+
+ejemplo_fun(2)
+(2+1)^2
+```
+
+
 ### Cargar datos
 
 Trabajaremos con una versión modificada de los [datos](https://www.kaggle.com/c/bike-sharing-demand) de uso de bicicletas públicas en Washington.
@@ -84,7 +165,7 @@ Recuerda que puedes pedir la ayuda de una función con el signo de interrogació
 ### Data frames y visualización
 
 El `data frame` es la estructura básica para trabajar con tablas de datos.
-Un `data frame` es una tabla cuadrada, pero a diferencia de una matriz, sus columnas
+Un `data frame` es una tabla rectangular, pero a diferencia de una matriz, sus columnas
 pueden ser de distintos tipos. En nuestro ejemplo, tenemos columnas de datetime, texto, 
 enteras y de punto flotante (dbl - precisión doble).
 
@@ -311,7 +392,57 @@ ggplot(temps_larga,
 
 ### Listas
 
+Además de la tabla, la lista es una estructura muy útil en R. Una lista contiene cualquier
+tipo de elementos:
 
+```{r}
+mi_lista <- list('primero'=1, 'fruta'='manzana','tabla'=bikes_muestra, 'vec'=c(1,2,5,2))
+mi_lista
+```
 
+Podemos extraer componentes de las siguientes dos formas:
+```{r}
+mi_lista$fruta
+mi_lista[[2]]
+```
 
+Con la función lapply podemos aplicar funciones componente a componente:
 
+```{r}
+otra_lista <- list(1, 1:2, 1:3, 1:4, 1:5)
+otra_lista
+salida <- lapply(otra_lista, sqrt)
+salida
+```
+
+Por ejemplo, para calcular la suma de los primeros cuadrados usando la lista anterior,
+podríamos hacer:
+```{r}
+suma_cuad <- function(x){
+  sum(x^2)
+}
+lapply(otra_lista, suma_cuad)
+```
+
+Puedes ver los ejemplos de clase para más casos en los que usamos listas.
+
+### Guardar objectos
+
+Puedes guardar objetos creados en R usando
+
+```{r}
+mi_vector <- c('uno','dos','tres')
+save(mi_vector, file='vector_uno.Rdata')
+rm('mi_vector')
+tryCatch(mi_vector, error = function(e) print(e)) #para que no se detenga erra cachamos el error
+load('vector_uno.Rdata')
+mi_vector
+```
+
+Nótese que se guarda el objeto con su nombre. Si quieres guardar solamente el objeto,
+
+```{r}
+saveRDS(mi_vector, file ='vector_dos.Rdata')
+nuevo_vector <- readRDS(file = 'vector_dos.Rdata')
+nuevo_vector
+```

@@ -62,10 +62,11 @@ def  preparar_zip(carpeta):
     for dirname, subdirs, files in os.walk(carpeta):
         if 'temp' not in dirname: 
             for filename in files:
-                absname = os.path.abspath(os.path.join(dirname, filename))
-                arcname = absname[len(abs_src) + 1:]
-                print 'zipping %s as %s' % (os.path.join(dirname, filename), arcname)
-                zf.write(absname, arcname)
+                if 'DS_Store' not in filename:
+                    absname = os.path.abspath(os.path.join(dirname, filename))
+                    arcname = absname[len(abs_src) + 1:]
+                    print 'zipping %s as %s' % (os.path.join(dirname, filename), arcname)
+                    zf.write(absname, arcname)
     zf.close()
     return "%s.zip" % (dst)
 
