@@ -20,7 +20,7 @@ de análisis de datos son:
 ### Introducción
 
 La mejor manera de usar R para análisis de datos es aprovechando la gran
-cantidad de paquetes de alta calidad que aportan funcionalidad adicional. Desde
+cantidad de paquetes que aportan funcionalidad adicional. Desde
 Rstudio podemos instalar paquetes (Tools - > Install packages). Una vez instalados,
 podemos cargarlos a nuestra sesión de R mediante `library`. Por ejemplo,
 para cargar el paquete `readr` hacemos
@@ -56,7 +56,6 @@ Cargamos  el paquete (aunque no es necesario porque lo hicimos arriba) e intenta
 
 
 ```{r}
-library(readr)
 bikes <- read_csv(file = '../../datos/bike_demand/train_bike.csv', n_max=10)
 problems(bikes)
 ```
@@ -69,7 +68,7 @@ adicional a la función `read_csv`:
 bikes <- read_csv(file = '../../datos/bike_demand/train_bike.csv', 
                 col_types = list('datetime'=col_datetime()))
 bikes 
-print(bikes, n = 13)
+print(bikes, n = 13, width = 180)
 ```
 
 donde vemos que `bikes` es un `data frame`de más de 10 mil renglones y 12 columnas.
@@ -87,7 +86,7 @@ Recuerda que puedes pedir la ayuda de una función con el signo de interrogació
 El `data frame` es la estructura básica para trabajar con tablas de datos.
 Un `data frame` es una tabla cuadrada, pero a diferencia de una matriz, sus columnas
 pueden ser de distintos tipos. En nuestro ejemplo, tenemos columnas de datetime, texto, 
-enteras y de punto flotante (dbl - doble precisión)
+enteras y de punto flotante (dbl - precisión doble).
 
 Usamos funciones de `dplyr` para extraer columnas (`select`), reglones(`filter`), 
 crear nuevas variables (`mutate`), agrupar (`group_by`) y resumir (`summarise`).
@@ -98,6 +97,24 @@ Primero vamos a extraer algunas columnas:
 conteos_hora <- bikes %>% select(datetime, weather_desc, count)
 conteos_hora
 ```
+
+¿Cómo funciona la notación `%>%` (que se llama `pipe` o tubo)? Las tres siguientes líneas son equivalentes. El símbolo `%>%` pasa el objeto de la izquierda al primer parámetro de la función de la derecha:
+
+```{r}
+bikes_muestra <- sample_n(bikes, 10)
+a <- select(.data = bikes_muestra, datetime,  count)
+b <- select(bikes_muestra, datetime,  count)
+c <- bikes_muestra %>% select(datetime,  count)
+all.equal(a, b)
+all.equal(b, c)
+```
+
+Ejemplos más simples:
+```{r}
+9 %>% sqrt
+```
+
+
 
 Podemos también crear nuevas variables:
 
@@ -184,7 +201,7 @@ conteos_dsem %>%
 Para comparar los conteos.
 ```{r}
 conteos_8 <- conteos_dsem %>% filter(hora==8)
-conteos_8
+print(conteos_8, width = 120)
 ```
 
 La idea es ahora usar `group_by` pero seguido de `mutate`, y no de `summarise`:
@@ -204,45 +221,30 @@ indices_8 <- conteos_8 %>%
   mutate(media_count = mean(count)) %>%
   ungroup() %>%
   mutate(indice = count/media_count)
-indices_8
+print(indices_8, width = 120)
 ```
 
 ```{r}
-print(arrange(indices_8, indice),n =10)
-print(arrange(indices_8, desc(indice)),n =10)
+print(arrange(indices_8, indice),n = 10, width = 120)
+print(arrange(indices_8, desc(indice)), n =10, width = 120)
 ```
 
-¿A qué se deben estas variaciones tan grandes? Podemos investigar más regresando con más variables:
-
-```{r}
-bikes_2 <-bikes %>% 
-  mutate(hora = hour(datetime), fecha = as.Date(datetime), dia_sem = weekdays(fecha))
-
-indices_8 <- bikes_2 %>%
-  select(fecha, hora, dia_sem, holiday, temp, count, weather_desc) %>%
-  filter(hora == 8) %>%
-  group_by(dia_sem) %>%
-  mutate(media = mean(count), indice = count/media)
-head(indices_8)
-tail(indices_8)
-```
-
-Ahora vemos los índices más grandes y los más chicos. Nótese que hacemos ungroup para que 
-no ordene dentro de grupos definidos anteriormente.
-
-```{r}
-indices_8 %>% ungroup() %>% arrange(indice) %>% print(n = 20)
-indices_8 %>% ungroup() %>% arrange(desc(indice)) %>% print(n = 20)
-```  
-  
+¿A qué se deben estas variaciones tan grandes? 
 Nótese que los días de menos demanda son en 2011 y los de mayor en 2012. Esto probablemente
 indica que con el tiempo la demanda ha crecido, y nuestro análisis no encontró lo que queríamos!
 Así que vamos a entender primero esta tendencia:
 
 ```{r}
+bikes_2 <-bikes %>% 
+  mutate(hora = hour(datetime), fecha = as.Date(datetime), dia_sem = weekdays(fecha))
+```
+
+```{r}
 resumen_dia <- bikes_2 %>% group_by(fecha, dia_sem) %>%
   summarise(count_dia = sum(count)) 
+```
 
+```{r}
 ggplot(resumen_dia, aes(x=fecha, y=count_dia)) + geom_point() + geom_line() +
   facet_wrap(~dia_sem) + geom_smooth()
 ```
@@ -282,14 +284,33 @@ Lo mejor para hacer esta gráfica es **trasponer** temp, atemp y humidity:
 
 ```{r}
 temps_larga <- dia_temps %>%
-  gather(variable, valor, temp:atemp)
-temps_larga
+  gather(medicion, valor, temp:atemp)
+head(temps_larga)
+tail(temps_larga)
 ```
 
+Nótese que esta operación es equivalente a apilar la tabla datetime-fecha-hora-temp y
+la tabla datetime-fecha-hora-atemp, agregando un identificador para saber la medición que estamos viendo.
+
+La ventaja es que ahora podemos usar la variable ```medicion``` para agrupar las series de tiempo:
 ```{r}
 ggplot(temps_larga, 
-       aes(x=datetime, y=valor, colour=variable, group=variable)) + geom_point() + geom_line()
+       aes(x = datetime, y = valor, colour = medicion, group = medicion)) + 
+  geom_point() + geom_line()
 ```
+
+### Ejercicio
+
+
+0. Obtén una tabla que solo contenga datetime, hora del día, temp, atemp y humidity.
+1. Obtén una tabla que solo contenga datetime, hora del día, temp, atemp y humidity, pero solamente para el año 2012.
+1. Calcula los promedios generales de temp, atemp y humidity en 2012. Sugerencia: utiliza la función `gather`que vimos en el último ejemplo.
+2. Calcula los promedios, para cada hora del día, de temp, atemp y humidity (en 2012).
+3. Grafica estos promedios (con eje x: hora del día)
+
+
+### Listas
+
 
 
 
