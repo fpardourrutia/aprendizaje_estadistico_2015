@@ -1,0 +1,9 @@
+---
+layout: post
+title:  'Introducción R'
+categories: taller
+---
+
+[Material]( https://www.dropbox.com/s/3t68ixk0bi2hpjp/intro_R.zip?dl=1 )
+
+Algunos conceptos útiles de R y operaciones básicas (viernes 14, 2-3:30pm, CC-101).
