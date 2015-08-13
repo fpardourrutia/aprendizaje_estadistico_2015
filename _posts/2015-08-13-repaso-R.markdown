@@ -1,0 +1,7 @@
+---
+layout: post
+title:  'Repaso de R y ayuda con instalación'
+categories: aviso
+---
+
+Viernes 14 de agosto, 2-3:30pm, Salón CC-101 (Centro de cómputo).
