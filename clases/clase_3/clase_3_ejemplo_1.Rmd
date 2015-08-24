@@ -50,7 +50,7 @@ Este es 1-vecino más cercano
 vmc.1 <- kknn(mpg ~ disp, train = dat, test= test_grid, k = 1, kernel='rectangular')
 test_grid$pred <- predict(vmc.1)
 ggplot(mtcars, aes(x = disp, y = mpg)) + geom_jitter(size=4) +
-  geom_line(data = test_grid, aes(x=disp, y=pred, colour= 'red'), size=1.1)
+  geom_line(data = test_grid, aes(x=disp, y=pred), colour= 'red', size=1.1)
 ```
 
 
@@ -62,7 +62,7 @@ Y cinco vecinos más cercanos:
 vmc.1 <- kknn(mpg ~ disp, train = mtcars, test= test_grid, k = 5, kernel='rectangular')
 test_grid$pred <- predict(vmc.1)
 ggplot(mtcars, aes(x = disp, y = mpg)) + geom_point(size=4) +
-  geom_line(data = test_grid, aes(x=disp, y=pred, colour= 'red'), size=1.1)
+  geom_line(data = test_grid, aes(x=disp, y=pred), colour= 'red', size=1.1)
 ```
 
 25 vecinos más cercanos:
@@ -71,7 +71,7 @@ ggplot(mtcars, aes(x = disp, y = mpg)) + geom_point(size=4) +
 vmc.1 <- kknn(mpg ~ disp, train = mtcars, test= test_grid, k = 25, kernel='rectangular')
 test_grid$pred <- predict(vmc.1)
 ggplot(mtcars, aes(x = disp, y = mpg)) + geom_point(size=4) +
-  geom_line(data = test_grid, aes(x=disp, y=pred, colour= 'red'), size=1.1)
+  geom_line(data = test_grid, aes(x=disp, y=pred), colour= 'red', size=1.1)
 ```
 
 

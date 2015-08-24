@@ -26,20 +26,21 @@ Usaremos los datos que vimos en la clase 2:
 
 ```{r }
 f <- function(x){
-  sin(2*pi*x) + cos(2*pi*x)
+  sin(2*pi*x) + cos(2*pi*x) 
 }
 simular  <- function(n_muestra, sd){
   x <- runif(n_muestra, 0, 1) 
   y <- f(x) + rnorm(length(x), mean = 0, sd = sd_mod)
   data.frame(x, y)
 }
-set.seed(28) 
-sd_mod <- 0.4
-datos <- simular(30, sd_mod)
+set.seed(2802) 
+sd_mod <- 0.8
+n_entrena <- 40
+datos <- simular(n_entrena, sd_mod)
 datos
 ```
 
-```{r}
+```{r, fig.width=10}
 x_plot <- seq(0,1,0.01)
 y_plot <- f(x_plot)
 ggplot(datos, aes(x=x, y=y), colour='red')+
@@ -51,7 +52,7 @@ Para una muestra de entrenamiento, obtenemos algo como sigue, como vimos en la c
 
 ```{r }
 ajuste_mod <- function(datos, m){
-  lm(y ~ poly(x, degree=m, raw = TRUE), data = datos) 
+  lm(y ~ poly(x, degree=m), data = datos) 
 }
 modelos <- lapply(1:9, function(i) ajuste_mod(datos, i))
 datos_graf_lista <- lapply(1:9, function(i){
@@ -80,7 +81,7 @@ sesgo (están consistententemente alejados del verdadero valor en la curva punte
 ```{r, warning=FALSE}
 
 datos_graf_lista <- function(){
-  datos <- simular(30, sd_mod)
+  datos <- simular(n_entrena, sd_mod)
   modelos <- lapply(1:9, function(i) ajuste_mod(datos, i))
   salida <- lapply(1:9, function(i){
     df <- data.frame(grado = i,  x=x_plot , 
@@ -89,6 +90,7 @@ datos_graf_lista <- function(){
     df   
   })
   salida}
+
 datos_graf <- lapply(1:5, function(i) { 
   dat <- rbind_all(datos_graf_lista())
   dat$rep <- i
@@ -110,14 +112,21 @@ En primer lugar, extraemos predicciones en algunos puntos del eje x, y juntamos 
 
 ```{r}
 # muestra de prueba fija.
-x_0 <- c(0.15, 0.4,0.9)
-salida_sim_lista <- lapply(1:500, function(i){
+x_0 <- c(0.2, 0.6, 0.9)
+simular_y <- function(x, sd_mod){
+  y <- f(x) + rnorm(length(x), mean = 0, sd = sd_mod)
+  y
+}
+set.seed(7205)
+salida_sim_lista <- lapply(1:2000, function(i){
     # simular muestra de entrenamiento
-    datos <- simular(n_muestra = 30, sd_mod)
+    datos <- simular(n_muestra = n_entrena, sd_mod)
     # ajustar polinomios
     preds <- lapply(1:9, function(m){
-            mod <- lm(y ~ poly(x, degree=m, raw = TRUE), data = datos)
-            data.frame(grado =m, x=x_0, f = f(x_0),preds = predict(mod, data.frame(x=x_0)))
+            mod <- lm(y ~ poly(x, degree=m), data = datos)
+            data.frame(grado = m, x = x_0, f = f(x_0), 
+                       y = simular_y(x_0, sd_mod),
+                       preds = predict(mod, data.frame(x=x_0)))
     })
     df <- rbind_all(preds)
     df$rep <- i
@@ -139,21 +148,31 @@ con el sesgo y la varianza en ese punto. Para hacer esto
 promediamos sobre las repeticiones:
 
 
-```{r}
+```{r, fig.width=10}
 salida <- salida_sim %>% group_by(grado, x, f) %>%
-  summarise(media = mean(preds), varianza = var(preds),
-                   error = mean((f-preds)^2)) %>%
+  summarise(media = mean(preds), varianza = var(preds), epe = mean((y-preds)^2)) %>%
   mutate(sesgo2 = (f-media)^2)
 salida_v <- salida %>% select(grado, x, varianza:sesgo2) %>%
   gather(componente, valor, varianza:sesgo2)
 ggplot(filter(salida_v, grado <= 8), 
        aes(x=grado, y=valor, colour=componente )) +
-  geom_point(size=3) +  facet_wrap(~x) + geom_line(size=1.1) 
+  geom_point(size=3) +  facet_wrap(~x) + geom_line(size=1.1)  
 ```
-
-En esta gráfica vemos como la suma de sesgo2 y varianza da el error cuadrático (en cada punto). Adicionalmente, vemos como el error alto
-se debe a distintas razones para grado bajo que para grado alto:
 
  - Para grado alto, el problema tiende a ser la varianza.
  - Para grado bajo, el problema tiende a ser el sesgo.
+
+Verificamos numéricamente la descomposición sesgo-varianza:
+
+```{r}
+salida$diff <- salida$epe - (salida$sesgo2 + salida$varianza)
+salida %>% 
+  filter(grado <= 8) %>%
+  group_by(grado, x) %>%
+  summarise(media_diff=mean(diff), media_epe = mean(epe)) %>% print(n=100)
+sd_mod^2
+```
+
+
+
 
