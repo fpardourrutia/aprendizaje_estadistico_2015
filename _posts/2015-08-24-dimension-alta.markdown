@@ -1,6 +1,6 @@
 ---
 layout: post
-title:  'Predicción y dimensión alta'
+title:  'Clase 5: Predicción y dimensión alta'
 categories: clase
 ---
 

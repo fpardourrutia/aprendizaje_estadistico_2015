@@ -1,6 +1,6 @@
 ---
 layout: post
-title:  'Descomposición sesgo/varianza'
+title:  'Clase 4: Descomposición sesgo/varianza'
 categories: clase
 ---
 

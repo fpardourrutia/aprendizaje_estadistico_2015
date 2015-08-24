@@ -1,6 +1,6 @@
 ---
 layout: post
-title:  'Modelos lineales y k-vecinos más cercanos'
+title:  'Clase 3: Modelos lineales y k-vecinos más cercanos'
 categories: clase
 ---
 
