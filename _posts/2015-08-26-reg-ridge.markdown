@@ -1,0 +1,7 @@
+---
+layout: post
+title:  'Modelos lineales y regularización ridge'
+categories: clase
+---
+
+[Material]( https://www.dropbox.com/s/l7jbkxbbmrfh6y0/clase_6.zip?dl=1), [Notas](https://www.dropbox.com/s/lcsgqzeyplxovoq/Notas_AE_06.pdf?dl=1)
