@@ -1,6 +1,6 @@
 ---
 layout: post
-title:  'Modelos lineales y regularización ridge'
+title:  'Clase 6: Modelos lineales y regularización ridge'
 categories: clase
 ---
 
