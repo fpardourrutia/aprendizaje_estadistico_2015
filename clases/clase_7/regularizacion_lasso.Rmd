@@ -1,0 +1,237 @@
+---
+title: "Regresión lineal y regularización lasso"
+author: "Felipe González"
+date: Otoño 2015
+output: 
+  html_document: 
+    theme: united
+---
+
+Ejemplo de Izenman, *Modern Multivariate Statistical Techniques*.
+
+```{r, warning=FALSE,message=FALSE}
+library(glmnet)
+library(ggplot2)
+library(dplyr)
+library(tidyr)
+library(readr)
+library(arm)
+bodyfat <- read_csv('datos/bodyfat.csv')
+names(bodyfat)
+nrow(bodyfat) 
+bodyfat$id <- bodyfat$`[EMPTY]`
+bodyfat$`[EMPTY]` <- NULL
+head(bodyfat)
+```
+
+Short Summary:
+Lists estimates of the percentage of body fat determined by underwater
+ weighing and various body circumference measurements for 252 men. 
+
+ Classroom use of this data set:
+ This data set can be used to illustrate multiple regression techniques.
+ Accurate measurement of body fat is inconvenient/costly and it is 
+ desirable to have easy methods of estimating body fat that are not' inconvenient/costly.
+
+ More Details:
+ A variety of popular health books suggest that the readers assess their
+ health, at least in part, by estimating their percentage of body fat. In
+ Bailey (1994), for instance, the reader can estimate body fat from tables
+ using their age and various skin-fold measurements obtained by using a
+ caliper. Other texts give predictive equations for body fat using body 
+ circumference measurements (e.g. abdominal circumference) and/or skin-fold
+ measurements. See, for instance, Behnke and Wilmore (1974), pp. 66-67;
+ Wilmore (1976), p. 247; or Katch and McArdle (1977), pp. 120-132). 
+ 
+
+ The variables listed below, from left to right, are: 
+
+ - Density determined from underwater weighing
+- Percent body fat from Siri's (1956) equation
+-  Age (years)
+-  Weight (lbs)
+-  Height (inches)
+-  Neck circumference (cm)
+-  Chest circumference (cm)
+-  Abdomen 2 circumference (cm)
+-  Hip circumference (cm)
+-  Thigh circumference (cm)
+-  Knee circumference (cm)
+-  Ankle circumference (cm)
+-  Biceps (extended) circumference (cm)
+-  Forearm circumference (cm)
+-  Wrist circumference (cm)
+
+Conviene pasar dos variables a métrico:
+
+```{r}
+bodyfat$estatura.cm <- 2.54*bodyfat$estatura
+bodyfat$peso.kg <- 0.45359237 * bodyfat$peso
+bodyfat$densidad <- NULL
+bodyfat$estatura <- NULL
+bodyfat$peso <- NULL
+```
+
+
+En primer lugar, tenemos que separar una muestra de entrenamiento y una de prueba.
+Vamos a seleccionar 60 casos de entrenamiento (generalmente con un conjunto de datos de este
+tamaño evaluamos desempeño con validación cruzada, no muestra de prueba. Esto lo veremos más adelante.)
+
+
+```{r}
+N <- 45
+set.seed(2805)
+indices_entrena <- sample(bodyfat$id, N)
+bodyfat_entrena <- filter(bodyfat, id %in% indices_entrena)
+bodyfat_prueba <- filter(bodyfat, !(id %in% indices_entrena))
+
+nrow(bodyfat_entrena)
+nrow(bodyfat_prueba)
+```
+
+
+Ahora podemos hacer algunos diagnósticos de nuestros datos. Primero los ponemos
+en forma larga:
+
+
+```{r}
+head(bodyfat_entrena)
+
+bf_e <- bodyfat_entrena %>%
+  gather(variable, valor, -id)
+```
+
+Y graficamos distribuciones univariadas:
+
+```{r, warning=FALSE,message=FALSE}
+
+ggplot(bf_e, aes(x=valor)) + facet_wrap(~variable, scales='free_x')+ geom_histogram() 
+```
+
+En primer lugar vemos que hay algunas medidas de estatura y tobillo que parecen
+muy fuera de su rango. Encontramos los ids:
+
+```{r}
+bodyfat_entrena %>%
+  filter(estatura.cm < 100) %>% data.frame
+```
+El primer caso corresponde a una persona de 44 años de 92kg con una estatura de 75cm. Este
+es un caso atípico para el que en realidad no queremos hacer predicciones.
+
+El segundo caso es más difícil de diagnosticar:
+```{r}
+bodyfat_entrena %>%
+  filter(tobillo > 30) %>% data.frame
+```
+```{r, warning=FALSE, message=FALSE}
+ggplot(bf_e, aes(x=valor)) + facet_wrap(~variable, scales='free_x')+ geom_histogram() +
+  geom_vline(data = filter(bf_e, id==42), aes(xintercept=valor), colour='red')
+```
+
+Por lo pronto decidimos quitar el caso con estatura demasiado baja. Esto no siempre ayuda mucho
+en la predicción, pero es una técnica que en algunos casos ayuda considerablemente:
+
+```{r, warning=FALSE, message=FALSE}
+ids_excluir <- c(42)
+ggplot(filter(bf_e, !(id %in% ids_excluir)), aes(x=valor)) + 
+  facet_wrap(~variable, scales='free_x')+ geom_histogram() 
+```
+
+
+Preparación de variables
+---
+
+
+En primer lugar, estandarizamos las variables de entrada. Esto facilita la interpretación
+del modelo resultante y también mejora el desempeño de muchos algoritmos de entrenamiento. Primero
+checamos media y desviación estándar de cada variable:
+```{r}
+bodyfat_entrena_1 <- filter(bodyfat_entrena, !(id %in% ids_excluir))
+bf_e <- bodyfat_entrena_1 %>%
+  gather(variable, valor, -id)
+media_de <- bf_e %>%
+  filter(!(id %in% ids_excluir)) %>%
+  group_by(variable) %>%
+  summarise(media = mean(valor), de = sd(valor))
+media_de
+```
+
+
+
+Y ahora estandarizamos las variables originales (no es necesario estandarizar la respuesta, 
+que es grasacorp). Vamos a crear una función para hacer esto:
+```{r}
+estandarizar <- function(nuevos_dat, media_de){
+  datos_est <- nuevos_dat %>%
+    gather(variable, valor, -id) %>%
+    group_by(variable) %>%
+    filter(variable != 'grasacorp') %>%
+    left_join(media_de) %>%
+    mutate(valor_st = (valor - media)/de) %>%
+    dplyr::select(id, variable, valor_st) %>%
+    spread(variable, valor_st) %>%
+    left_join(dplyr::select(nuevos_dat, id, grasacorp))
+  datos_est
+}
+```
+```{r, warning=FALSE, message=FALSE}
+bf_entrena_st <- estandarizar(bodyfat_entrena_1, media_de)
+bf_prueba_st <- estandarizar(bodyfat_prueba, media_de)
+
+```
+
+
+
+
+
+### Regresión lasso
+
+Ahora repetimos el análisis usando regresión regularizada según ridge. Podemos ajustar varios modelos con distintos coeficientes lambda de regularización:
+
+```{r}
+X <- dplyr::select(bf_entrena_st, -id, -grasacorp) %>% as.matrix()
+X_prueba <- dplyr::select(bf_prueba_st, -id, -grasacorp) %>% as.matrix()
+y <- bf_entrena_st$grasacorp
+y_prueba <- bf_prueba_st$grasacorp
+mod_lasso <- glmnet(x=X, y=y, alpha=1.0, lambda =exp(seq(-15,2,0.5)), standardize=FALSE)
+```
+
+En primer lugar podemos ver cómo cambian los coeficientes del predictor cuando variamos la regularizacón, y vemos que efectivamente cuando incrementamos la lambda los coeficientes tienden a encogerse hacia 0:
+
+```{r}
+plot(mod_lasso, xvar = "lambda")
+```
+
+Ahora podemos ver el efecto en las predicciones para distintos valores de lambda:
+
+```{r}
+preds <- predict(mod_lasso, newx = X_prueba) %>%
+  as.data.frame 
+preds$id <- bf_prueba_st$id
+preds <- preds %>% gather(lambda_num, pred, -id) %>%
+  left_join(dplyr::select(bf_prueba_st, id, grasacorp)) 
+  
+ggplot(preds %>% filter(lambda_num %in% c('s1','s5','s10','s15','s20')), 
+       aes(x=grasacorp, y= pred)) + geom_point() + facet_wrap(~lambda_num)+
+  geom_abline(slope=1, xintercept=0, colour='red')
+```
+Aquí observamos también este efecto de encogimiento a la media.
+
+Ahora calculamos errores de prueba:
+
+```{r}
+error_prueba <- 
+preds %>% group_by(lambda_num) %>%
+  summarise(error = sqrt(mean((grasacorp-pred)^2)))
+ggplot(error_prueba, aes(x=lambda_num, y=error))+ geom_point(size=4.5)
+  
+```
+
+Finalmente, veamos cómo se ven los coeficientes del mejor modelo:
+
+```{r}
+coef(mod_lasso)[, 's6']
+```
+
+Nótese como este modelo incluye solamente `r sum(abs(coef(mod_lasso)[-1, 's6'])>0)`
+coeficientes distintos de cero.
