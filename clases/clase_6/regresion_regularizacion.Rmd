@@ -78,8 +78,9 @@ En primer lugar, tenemos que separar una muestra de entrenamiento y una de prueb
 Vamos a seleccionar 60 casos de entrenamiento (generalmente con un conjunto de datos de este
 tamaño evaluamos desempeño con validación cruzada, no muestra de prueba. Esto lo veremos más adelante.)
 
+
 ```{r}
-N <- 35
+N <- 45
 set.seed(2805)
 indices_entrena <- sample(bodyfat$id, N)
 bodyfat_entrena <- filter(bodyfat, id %in% indices_entrena)
@@ -338,7 +339,7 @@ a variabilidad en la predicción, lo que a su vez resulta en error de predicció
 
 ### Regresión ridge
 
-Ahora repetimos el análisis usando regresión regularizada según ridge.
+Ahora repetimos el análisis usando regresión regularizada según ridge. Podemos ajustar varios modelos con distintos coeficientes lambda de regularización:
 
 ```{r}
 X <- dplyr::select(bf_entrena_st, -id, -grasacorp) %>% as.matrix()
@@ -346,9 +347,15 @@ X_prueba <- dplyr::select(bodyfat_prueba_st, -id, -grasacorp, -pred,-residual) %
 y <- bf_entrena_st$grasacorp
 y_prueba <- bodyfat_prueba_st$grasacorp
 mod_ridge <- glmnet(x=X, y=y, alpha=0.0, lambda =exp(seq(-10,10,1)), standardize=FALSE)
+```
+
+En primer lugar podemos ver cómo cambian los coeficientes del predictor cuando variamos la regularizacón, y vemos que efectivamente cuando incrementamos la lambda los coeficientes tienden a encogerse hacia 0:
+
+```{r}
 plot(mod_ridge, xvar = "lambda")
 ```
 
+Ahora podemos ver el efecto en las predicciones para distintos valores de lambda:
 
 ```{r}
 preds <- predict(mod_ridge, newx = X_prueba) %>%
@@ -361,9 +368,9 @@ ggplot(preds %>% filter(lambda_num %in% c('s1','s5','s10','s15','s20')),
        aes(x=grasacorp, y= pred)) + geom_point() + facet_wrap(~lambda_num)+
   geom_abline(slope=1, xintercept=0, colour='red')
 ```
+Aquí observamos también este efecto de encogimiento a la media.
 
-
-Y ahora calculamos errores de prueba:
+Ahora calculamos errores de prueba:
 
 ```{r}
 error_prueba <- 
@@ -380,8 +387,56 @@ coef(mod_ridge)[, 's9']
 coef(mod_1)
 ```
 
-Nótese que estos son coeficientes no estandarizados. Estos los compararíamos con
+### Observaciones de glment
+
+**Observación:** En este ejemplo hicimos toda la estandarización a mano, y escogimos también lambdas a mano. Típicamente usamos la estandarización interna de glmnet. Tomamaos los datos sin estandarizar:
+
 
 ```{r}
+X <- dplyr::select(bodyfat_entrena_1, -id, -grasacorp) %>% as.matrix()
+X_prueba <- dplyr::select(bodyfat_prueba, -id, -grasacorp) %>% as.matrix()
+y <- bodyfat_entrena_1$grasacorp
+y_prueba <- bodyfat_prueba$grasacorp
+```
+
+Y ajustamos los modelos (las lambdas se seleccionan automáticamente):
+
+```{r}
+mod_ridge_1 <- glmnet(x=X, y=y, alpha=0.0)
+plot(mod_ridge)
+```
+
+Y nótese que los coeficientes se devuelven *en las unidades originales*, por ejemplo:
+
+```{r}
+coef(mod_ridge_1)
+```
+
+Pregunta: ¿por qué varía el *Intercept*? Compara con
+
+```{r}
+coef(mod_ridge)
+```
+
+Para hacer predicciones, entonces, usamos las variables originales, por ejemplo,
+
+```{r}
+preds_manual <- cbind(1,X_prueba)%*%coef(mod_ridge_1)[,30]
+preds_1 <- predict(mod_ridge_1, newx = X_prueba)
+qplot(preds_manual, preds_1[,30])
+```
+
+### Regresión lineal con bayesglm
+
+```{r}
+sd_y <- sd(bodyfat_prueba_st$grasacorp)
+mod_bayes <- bayesglm(grasacorp ~ .,
+                      prior.scale = 2, prior.df=Inf, scaled=FALSE,
+                      data = bodyfat_entrena_st %>% dplyr::select(-id))
+display(mod_bayes)
+mod_bayes <- bayesglm(grasacorp ~ .,
+                      prior.scale = 10,prior.df=Inf, scaled=FALSE,
+                      data = bodyfat_entrena_st %>% dplyr::select(-id))
+display(mod_bayes)
 
 ```

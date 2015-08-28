@@ -193,7 +193,7 @@ X <- dplyr::select(bf_entrena_st, -id, -grasacorp) %>% as.matrix()
 X_prueba <- dplyr::select(bf_prueba_st, -id, -grasacorp) %>% as.matrix()
 y <- bf_entrena_st$grasacorp
 y_prueba <- bf_prueba_st$grasacorp
-mod_lasso <- glmnet(x=X, y=y, alpha=1.0, lambda =exp(seq(-15,2,0.5)), standardize=FALSE)
+mod_lasso <- glmnet(x=X, y=y, alpha=1.0, lambda =exp(seq(-15,5,0.5)), standardize=FALSE)
 ```
 
 En primer lugar podemos ver cómo cambian los coeficientes del predictor cuando variamos la regularizacón, y vemos que efectivamente cuando incrementamos la lambda los coeficientes tienden a encogerse hacia 0:
