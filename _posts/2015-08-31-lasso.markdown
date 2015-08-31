@@ -1,0 +1,7 @@
+---
+layout: post
+title:  'Regularización ridge y lasso.'
+categories: clase
+---
+
+[Material]( https://www.dropbox.com/s/qbis3sg2g7is66s/clase_7.zip?dl=1 ), [Notas](https://www.dropbox.com/s/kn2uoj0h68nrq35/Notas_AE_07.pdf?dl=1)
