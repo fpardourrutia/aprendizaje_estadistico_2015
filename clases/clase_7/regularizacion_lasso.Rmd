@@ -230,7 +230,7 @@ ggplot(error_prueba, aes(x=lambda_num, y=error))+ geom_point(size=4.5)
 Finalmente, veamos cómo se ven los coeficientes del mejor modelo:
 
 ```{r}
-coef(mod_lasso)[, 's6']
+coef(mod_lasso)[, 's12']
 ```
 
 Nótese como este modelo incluye solamente `r sum(abs(coef(mod_lasso)[-1, 's6'])>0)`
