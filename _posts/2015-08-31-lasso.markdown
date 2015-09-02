@@ -1,6 +1,6 @@
 ---
 layout: post
-title:  'Regularización ridge y lasso.'
+title:  'Clase 7: Regularización ridge y lasso.'
 categories: clase
 ---
 
