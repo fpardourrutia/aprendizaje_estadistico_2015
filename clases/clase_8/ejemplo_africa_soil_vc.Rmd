@@ -1,0 +1,227 @@
+---
+title: "Africa soil prediction"
+output: html_document
+---
+
+Este es un ejemplo de kaggle: [Africa Soil Property Prediction Challenge](https://www.kaggle.com/c/afsis-soil-properties). Intentaremos predecir
+características importantes para el crecimiento de plantas en función de variables
+de espectroscopía de muestras de suelo, junto con variables de percepción remota.
+
+En este ejemplo usaremos regresión ridge, lasso y elastic net.
+
+
+## Datos
+
+> Advances in rapid, low cost analysis of soil samples using infrared spectroscopy, georeferencing of soil samples, and greater availability of earth remote sensing data provide new opportunities for predicting soil functional properties at unsampled locations.The amount of light absorbed by a soil sample is measured, with minimal sample preparation, at hundreds of specific wavebands across a range of wavelengths to provide an infrared spectrum. The measurement can be typically performed in about 30 seconds, in contrast to conventional reference tests, which are slow and expensive and use chemicals.
+
+### Data fields
+
+- SOC, pH, Ca, P, Sand are the five target variables for predictions. The data have been monotonously transformed from the original measurements and thus include negative values. 
+
+
+- PIDN: unique soil sample identifier
+- SOC: Soil organic carbon
+- pH: pH values
+- Ca: Mehlich-3 extractable Calcium
+- P: Mehlich-3 extractable Phosphorus
+- Sand: Sand content 
+- m7497.96 - m599.76: There are 3,578 mid-infrared absorbance measurements. For example, the "m7497.96" column is the absorbance at wavenumber 7497.96 cm-1. We suggest you to remove spectra CO2 bands which are in the region m2379.76 to m2352.76, but you do not have to.
+- Depth: Depth of the soil sample (2 categories: "Topsoil", "Subsoil")
+
+We have also included some potential spatial predictors from remote sensing data sources. Short variable descriptions are provided below and additional descriptions can be found at AfSIS data. The data have been mean centered and scaled.
+
+- BSA: average long-term Black Sky Albedo measurements from MODIS satellite images (BSAN = near-infrared, BSAS = shortwave, BSAV = visible)
+- CTI: compound topographic index calculated from Shuttle Radar Topography Mission elevation data
+- ELEV: Shuttle Radar Topography Mission elevation data
+- EVI: average long-term Enhanced Vegetation Index from MODIS satellite images.
+- LST: average long-term Land Surface Temperatures from MODIS satellite images (LSTD = day time temperature, LSTN = night time temperature)
+- Ref: average long-term Reflectance measurements from MODIS satellite images (Ref1 = blue, - Ref2 = red, Ref3 = near-infrared, Ref7 = mid-infrared)
+- Reli: topographic Relief calculated from Shuttle Radar Topography mission elevation data
+- TMAP & TMFI: average long-term Tropical Rainfall Monitoring Mission data (TMAP = mean annual precipitation, TMFI = modified Fournier index)
+
+## Preparación de datos
+
+```{r}
+library(readr)
+library(dplyr)
+library(ggplot2)
+library(stringi)
+library(tidyr)
+dat <- read_csv('../../datos/soil/training.csv')
+dim(dat)
+```
+
+Las variables de espectroscopía se dan como mediciones absorción a distintas
+frecuencias (wavenumbers), y contienen la letra `m`:
+```{r}
+names(dat)[1]
+names(dat)[c(1,2,3,3577,3578.3579)]
+```
+
+Siguen las variables de percepción remota:
+
+```{r}
+names(dat)[3580:3593]
+```
+
+La variable que indica la profundidad de la muestra:
+
+```{r}
+head(dat$Depth)
+```
+
+y finalmente las variables que qeremos predecir:
+```{r}
+names(dat)[3596:3600]
+```
+
+
+Una dificultad de estos datos es que los datos están agrupados en pares (Topsoil,Subsoil), lo cual se puede ver por los datos de percepción remota:
+```{r}
+dat$lugar <- as.numeric(factor(paste(dat$BSAS,dat$CTI, dat$ELEV, dat$EVI, dat$LST)))
+conteo <- dat %>% group_by(lugar) %>% tally
+conteo
+table(conteo$n)
+conteo <- dat %>% group_by(lugar, Depth) %>% tally
+conteo
+table(conteo$n)
+```
+
+### Discusión: predicción y validación
+
+Aquí es importante preguntarnos qué queremos predecir y cómo hacer la validación.
+Nótese que en cada posición tenemos datos de dos muestras de suelo. Supongamos primero
+que usáramos muestras de validación y prueba. En este caso, sería importante
+tratar a cada posición como una unidad, pues **queremos predecir para nuevos lugares**.
+Si escogemos las muestras al azar, puede ser que para un lugar Subsoil entre en entrenamiento y Topsoil entre en prueba, **y esta no es la tarea de predicción que queremos resolver**. Similitudes entre las dos mediciones de un lugar puede hacer nuestra validación demasiado optimista. 
+
+Una opción es hacer la validación cruzada tomando cada par de mediciones como un bloque (separar según lugares, no renglones!). En este caso particular, intentaremos sólo predecir las mediciones de Topsoil.
+
+
+```{r}
+top <- filter(dat, Depth=='Topsoil')
+set.seed(12102)
+indice_entrena <- sample(1:nrow(top), 500)
+top_train <- top[indice_entrena, ]
+top_test <- top[-indice_entrena, ]
+top_train$Depth <- NULL
+```
+
+
+
+
+Vamos a examinar primero las variables de espectro:
+
+```{r}
+espectro <- top_train %>%
+  dplyr::select(PIDN, starts_with('m') ) %>%
+  gather(id.m, valor, -PIDN) %>%
+  separate(id.m, c('temp', 'wlen'), 1)
+head(espectro)
+```
+
+Escogemos 10 sitios al azar y graficamos el espectro:
+
+```{r}
+pidn_u <- unique(espectro$PIDN)
+pids <- sample(pidn_u, 10)
+espectro_v <- filter(espectro, PIDN %in% pids)
+ggplot(espectro_v, aes(x=as.numeric(wlen), y=valor, colour=PIDN)) + geom_line() 
+```
+
+Podemos hacer un resumen rápido de mediana y rango de cada variable:
+
+```{r}
+resumen_esp <- espectro_v %>% group_by(wlen) %>%
+  summarise(mediana = median(valor), max = max(valor), min = min(valor)) %>%
+  gather(resumen, valor, mediana:min)
+ggplot(resumen_esp, aes(x=as.numeric(wlen), y=valor, colour=resumen)) + geom_point()
+```
+
+Y hacemos una revisión rápida del resto de las variables:
+
+```{r}
+remota <- top_train %>% dplyr::select(PIDN, BSAN:TMFI) %>% gather(variable, valor, -PIDN)
+ggplot(remota, aes(x=variable, y=valor)) + geom_boxplot()
+```
+
+### Predicción de pH
+
+Vamos a intentar predecir el pH de las muestras de suelo. Tenemos una muestra relativamente chica, así que usaremos validación cruzada
+
+```{r}
+qplot(top_train$pH)
+```
+
+La raíz del error cuadrático medio si predecimos con la media está alrededor (habría que hacer validación cruzada, pero en este caso el promedio es un predictor muy estable con error similar de entrenamiento y prueba!) de
+```{r}
+library(glmnet)
+mean(top_train$pH)
+sd(top_train$pH)
+```
+
+
+```{r, cache=T}
+y <- top_train$pH
+X <- top_train %>% dplyr::select(m7497.96:TMFI) %>% as.matrix
+X_test <- top_test %>% dplyr::select(m7497.96:TMFI) %>% as.matrix
+y_test <- top_test$pH
+modelos_cv <- cv.glmnet(y=y, x=X, alpha=0.1)
+plot(modelos_cv)
+modelos_cv <- cv.glmnet(y = y, x = X, alpha=0.1, lambda=exp(seq(-1,-18,-1)))
+plot(modelos_cv)
+sqrt(modelos_cv$cvm)
+```
+
+En este ejemplo, es necesario regularizar pues $p>n$. No parece ser necesario
+regularizar muy fuertemente para obtener un buen resultado de validación cruzada.
+Sin embargo, podemos entender más de los datos comenzando con un modelo más simple.
+
+
+La estimación de validación cruzada para nuestro modelo, y la lambda correspondiente es:
+
+```{r}
+sqrt(modelos_cv$cvm[7])
+log(modelos_cv$lambda[7])
+```
+
+
+
+```{r, fig.height=15, fig.width=8}
+coefs_1 <- coef(modelos_cv, s=modelos_cv$lambda) #1 error estándar del mínimo
+coef_dat <- coefs_1 %>% as.matrix %>% as.data.frame
+coef_dat$variable <- rownames(coef_dat)
+coefs <- coef_dat %>% gather(s, valor, -variable)  
+coefs_espectro <- filter(coefs, stri_detect(variable, fixed = 'm')) %>%
+  separate(variable, c('temp', 'wlen'), 1) %>% mutate(wlen=as.numeric(wlen))
+
+ggplot(coefs_espectro, aes(x=wlen, y=valor))+
+  geom_hline(yintercept=0, col='red')+
+  geom_line() +
+  facet_wrap(~s, ncol=2) 
+ggplot(coefs_espectro, aes(x=wlen, y=valor))+
+  geom_hline(yintercept=0, col='red')+
+  geom_line() +
+  facet_wrap(~s, scales='free_y', ncol=2)
+ggplot(filter(coefs_espectro, wlen < 2000), aes(x=wlen, y=valor))+
+  geom_hline(yintercept=0, col='red')+
+  geom_line() + geom_point(size=2)+
+  facet_wrap(~s, scales='free_y', ncol=2)
+```
+
+
+
+Donde vemos que nuestros modelos parecen querer capturar picos en el espectro. 
+
+
+```{r}
+qplot(y_test,predict(modelos_cv, newx=X_test)[,1]) + 
+  geom_abline(xintercept = 0, slope = 1, colour = 'red') 
+sqrt(mean((y_test-predict(modelos_cv, newx=X_test)[,1])^2))
+```
+
+
+### Ejercicio
+
+- Calcula el error de validación cruzada para la mejor $\lambda$ con distintos
+valores de $\alpha =0,0.2,0.4,0.6,0.8,1.0$, por ejemplo.
