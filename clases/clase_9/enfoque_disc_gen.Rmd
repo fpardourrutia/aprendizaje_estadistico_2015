@@ -1,0 +1,128 @@
+---
+title: "Enfoques discriminativo(generativo"
+author: "Felipe González"
+date: Otoño 2015
+output: 
+  html_document: 
+    theme: united
+---
+
+```{r}
+library(readr)
+library(ggplot2)
+library(tidyr)
+library(dplyr)
+```
+
+```{r}
+wine <- read_csv('../../datos/wine/wine.dat', col_names = FALSE)
+cat(readLines('../../datos/wine/wine.names'), sep = '\n')
+names(wine) <- c('class','alcohol','malic_acid','ash','alcalinity_ash','Mg','total_phenols','flavonoids','nonfl_phenols','proanthocyanins','color_intensity','hue','OD280_OD31','proline')
+```
+
+
+Consideramos solamente la variable de intensidad de color.
+
+```{r}
+color_wine <- wine %>% dplyr::select(class, color_intensity) 
+ggplot(color_wine, aes(x=color_intensity, fill=factor(class), )) + geom_histogram()
+ggplot(color_wine, aes(x=color_intensity, fill=factor(class), )) + geom_histogram()+
+  facet_wrap(~class)
+```
+
+
+Ahora buscamos estimar probabilidades condicionales de clase dado el color.
+
+### Ejemplo discriminativo: k-vmc
+
+Podemos usar k-vecinos más cercanos para estimar directamente probabilidades
+de clase. Si queremos por ejemplo estimar $p_i(x)$, tomamos los datos más cercanos a $x$, y calculamos la proporción de clase $i$. Estas probabilidades siempre suman 1:
+
+Podemos afinar este modelo y estimar error de clasificación:
+
+```{r}
+library(caret)
+color_wine$class_f <- factor(color_wine$class)
+control <- trainControl(method = "cv", number = 5)
+grid <- data_frame(k=c(1,3,5,10,20,30,40,50,50,60,70,80,90,100,120))
+set.seed(209415)
+cv_kvmc <- train(x=color_wine %>%select(color_intensity), 
+                             y=color_wine$class_f, 
+                             method = "knn", 
+                             tuneGrid = grid,
+                             trControl = control)
+plot(cv_kvmc)
+```
+
+y podemos graficar las probabilidades condicionales de clase:
+
+```{r}
+library(kknn)
+color_wine$class_f <- factor(color_wine$class)
+pred_grid <- data_frame(color_intensity=seq(1,13,0.1))
+kvmc <- kknn(class_f ~  color_intensity,
+     k = 40,
+     train = color_wine,
+     test= pred_grid)
+mat_prob <- kvmc$prob
+preds_df <- bind_cols(as.data.frame(kvmc$prob), pred_grid) %>%
+  gather(class, prob, -color_intensity)
+ggplot(preds_df, aes(x=color_intensity, y=prob, colour=class, group=class)) + geom_line(size=1.5)
+```
+
+### Ejemplo generativo: análisis discriminante
+
+En el ejemplo generativo producimos modelos de las covariables dada cada clase (podemos generar datos de entrada dada la clase).
+
+En este ejemplo intentaremos estimar directamente las densidades condicionales
+$$f_{X|C}(x|c)$$
+para $c=1,2,3$. Aunque podríamos intentar hacer una estimación no paramétrica (por ejemplo
+usando estimaciones de densidades con método de kernel), para simplificar (y quizá reducir varianza) ajustaremos
+modelos normales.
+
+Ahora suponemos que la densidad condicional de intensidad de color dada la clase es
+normal con una media $\mu_i$ y varianza $\sigma_k^2$. Esto es análisis discriminante
+en una dimensión.
+$f_X(x|c) = N(\mu_c, \sigma_c^2).$
+Podemos entonces estimar media y varianza para cada clase:
+```{r}
+params <- color_wine %>% group_by(class) %>%
+  summarise(media = mean(color_intensity),
+            desv = sd(color_intensity))
+```
+
+El cálculo de las condicionales de clase es simple y podemos hacerlo con una función:
+```{r}
+prob_clase <- function(x, params, p_clase){
+  log_f <- dnorm(x, params$media, params$desv, log = TRUE)
+  log_p <- log_f + log(p_clase)
+  data_frame(intensidad_color = x, clase= 1:3, prob=(exp(log_p)/sum(exp(log_p))))
+}
+prob_clase(x=5, params, c(0.3,0.4,0.3))
+
+p_clase <- table(wine$class)
+p_clase
+probs_df <- lapply(pred_grid$color_intensity, function(x){
+ prob_clase(x, params, p_clase)
+}) %>% bind_rows
+ggplot(probs_df, aes(x=intensidad_color, y=prob, colour=factor(clase), group=clase)) +
+  geom_line(size=1.5)
+
+```
+
+
+El error de validación cruzada es:
+```{r}
+library(caret)
+color_wine$class_f <- factor(color_wine$class)
+control <- trainControl(method = "cv", number = 5)
+cv_lda <- train(x=color_wine %>%select(color_intensity), 
+                             y=color_wine$class_f, 
+                             method = "lda", 
+                             trControl = control)
+cv_lda
+```
+
+Que considerando las desviaciones estándar de las estimaciones de precisión,
+no está muy lejos de k-vmc.
+
