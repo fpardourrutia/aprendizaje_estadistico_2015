@@ -1,0 +1,107 @@
+---
+title: "Naive Bayes y regresión logística"
+author: "Felipe González"
+date: Otoño 2015
+output: 
+  html_document: 
+    theme: united
+---
+
+
+```{r}
+library(readr)
+library(ggplot2)
+library(tidyr)
+library(dplyr)
+library(e1071)
+library(glmnet)
+library(shiny)
+library(rmarkdown)
+```
+
+```{r}
+wine <- read_csv('./datos/wine/wine.dat', col_names = FALSE)
+cat(readLines('../../datos/wine/wine.names'), sep = '\n')
+names(wine) <- c('class','alcohol','malic_acid','ash','alcalinity_ash','Mg','total_phenols','flavonoids','nonfl_phenols','proanthocyanins','color_intensity','hue','OD280_OD31','proline')
+```
+
+Para tener algunas variables discretas de entrada, categorizamos *color_intensity* y *hue*:
+
+```{r}
+wine_c <- wine %>% 
+  mutate(color_cat = cut(color_intensity, quantile(color_intensity), include.lowest =T),
+         hue_cat = cut(hue, quantile(hue), include.lowest =T)) %>%
+  mutate(class_f = factor(class)) %>%
+  dplyr::select(-color_intensity, -hue, -class) 
+  
+
+```
+
+
+### Bayes ingenuo
+
+```{r}
+#naiveBayes de paquete e1071
+model_nb <- naiveBayes(class_f ~ ., data = wine_c, laplace = T)
+```
+
+Y aquí están los ajustes para las condicionales de cada variable dada la clase:
+
+```{r}
+model_nb
+```
+
+Evaluamos con caret:
+
+```{r, warning=FALSE}
+library(caret)
+set.seed(7023)
+grid <- data.frame(fL = 1, usekernel = FALSE)
+control <- trainControl(method = "cv", number = 5)
+##nota: usa naiveBayes de paquete klaR
+cv_nb <- train(x= wine_c %>% dplyr::select(-class_f), 
+                             y=wine_c$class_f, 
+                             method = "nb", 
+                             tuneGrid = grid,
+                             trControl = control)
+cv_nb
+```
+
+Contamos doble información cuando aplicamos Bayes ingenuo, pues
+no tomamos en cuenta la covarianza de las variables, por ejemplo:
+```{r}
+ggplot(wine_c, aes(x=alcalinity_ash, y=ash)) + geom_point()+
+  facet_wrap(~class_f)
+```
+
+En esta gráfica *contamos doble* el efecto de estas dos variables en la predicción: las probabilidades de Naive Bayes pueden ser sobreconfiadas (muy cercanas a 0 o 1).
+
+### Regresión logística
+
+Podemos usar glmnet con lasso:
+
+```{r}
+X <- wine_c %>% dplyr::select(-class_f) %>% model.matrix(~ -1+., data=.) %>% 
+  scale(center=TRUE, scale=TRUE) # centramos para leer coeficientes más fácil
+y <- wine_c$class_f
+mod_reg <- cv.glmnet(y = y, x = X, alpha=1, family = 'multinomial')
+plot(mod_reg)
+coef(mod_reg, s = 'lambda.1se')
+```
+
+Vemos que hay tres juegos de coeficientes, que corresponden a las tres posibles clases. Asegúrate de que dada un renglón de la matriz 
+
+
+```{r}
+mod_reg_cl <- cv.glmnet(y = y, x = X, alpha=1, family = 'multinomial',
+                     type.measure = 'class')
+plot(mod_reg_cl)
+```
+
+La tasa de aciertos del modelo en el mínimo error es
+
+```{r}
+1-min(mod_reg_cl$cvm)
+```
+
+
