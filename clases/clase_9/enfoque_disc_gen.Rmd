@@ -121,11 +121,11 @@ El error de validación cruzada es:
 library(caret)
 color_wine$class_f <- factor(color_wine$class)
 control <- trainControl(method = "cv", number = 5)
-cv_lda <- train(x=color_wine %>%select(color_intensity), 
+cv_qda <- train(x=color_wine %>%select(color_intensity), 
                              y=color_wine$class_f, 
-                             method = "lda", 
+                             method = "qda", 
                              trControl = control)
-cv_lda
+cv_qda
 ```
 
 Que considerando las desviaciones estándar de las estimaciones de precisión,
