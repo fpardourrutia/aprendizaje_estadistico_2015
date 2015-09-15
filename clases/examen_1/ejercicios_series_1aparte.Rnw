@@ -1,0 +1,190 @@
+\documentclass{article}
+\usepackage{amsmath}
+%\renewcommand{\rmdefault}{ppl} 
+%\linespread{1.05}        
+\usepackage{amsfonts}
+\usepackage{graphicx}
+\usepackage{wrapfig}
+%\usepackage{epsfig}
+%\usepackage{epstopdf}
+\usepackage[utf8x]{inputenc}
+\usepackage[spanish]{babel}
+\newenvironment{remark}[1][Observaci\'on]{\begin{trivlist}
+\item[\hskip \labelsep {\bfseries #1}]}{\end{trivlist}}
+\newenvironment{example}[1][Ejemplo]{\small \begin{trivlist}
+\item[\hskip \labelsep {\bfseries #1}]}{\end{trivlist}}
+\newenvironment{definition}[1][Definici\'on]{\begin{trivlist}
+\item[\hskip \labelsep {\bfseries #1}]}{\end{trivlist}}
+\newenvironment{exercise}[1][Ejercicio]{\small \begin{trivlist}
+\item[\hskip \labelsep {\bfseries #1}]}{\end{trivlist}}
+\newtheorem{theorem}{Teorema}[section]
+\newtheorem{lemma}[theorem]{Lema}
+\newtheorem{prop}[theorem]{Proposici\'on}
+\newtheorem{corollary}[theorem]{Corolario}
+\usepackage{Sweave}
+\spanishdecimal{.}
+
+
+\begin{document}
+\SweaveOpts{concordance=TRUE}
+
+
+\subsection*{Aprendizaje Estadístico 2015. Examen 1}
+
+
+\begin{enumerate}
+	
+
+	
+\item Sea $Y$ una variable aleatoria independiente de $X=(X_1,\ldots, X_p)$.
+	Calcula un predictor de $Y$, en función de $X$, que de  la mínima pérdida cuadrática
+  para predecir la salida $Y$ dado $X$.
+	
+
+\item Sea $X=(X_1,\ldots, X_p)$, donde $X$ es uniforme en
+la bola $\{ x\in R^p |  ||x||^2<1 \}$, y ${\cal L}$ es una muestra aleatoria
+de tamaño $N$ de la distribución de $X$. 
+Considera la variable aleatoria $D=\min_{x \in {\cal L}}||x||$, que
+da la mínima distancia al origen entre los puntos de la muestra ${\cal L}$.
+Calcula la mediana de $D$ y explica qué tiene qué ver esto con
+la maldición de las dimensiones.
+
+
+
+
+\item Sea $x_i=i/20$ para $i=0,\ldots,20$ {\bf fijos}, y
+supón que cada respuesta se construye como
+$y_i=|x_i-1/2| + \epsilon_i$ con $\epsilon_i\sim N(0,1)$
+independientes. Usaremos
+$k$-vecinos más cercanos para predecir $Y$.
+
+Calcula la descomposición del error esperado de predicción
+para $x_{10}=0.5$
+en irreducible, sesgo y varianza para $k=1,3,6$.
+ Describe el comportamiento de cada componente cuando $k$ toma
+ estos distintos valores.
+
+
+\item Considera el problema ridge. Demuestra que si las variables están centradas,
+y no penalizamos la ordenada al origen $\beta_0$, entonces $\hat{\beta}_0^{ridge}$ es la media
+de las $y_i$, independientemente de la $\lambda$ seleccionada.
+
+
+\item Muestra que las estimaciones de regresión ridge pueden obtenerse por mínimos cuadrados
+en un conjunto de datos aumentado. Aumentamos $\underline{X}$ con $p$ renglones adicionales $\sqrt{\lambda}I$,
+y aumentamos $y$ con $p$ ceros. Muestra que agregando estos datos artificiales el proceso de ajuste
+está forzado a encoger los coeficientes hacia cero.
+
+\item Suponemos que la matriz $\underline{X}$ de entradas es ortogonal. Escribe explícitamente
+la solución de ridge para $\lambda >0$ en términos de la solución de mínimos cuadrados.
+
+¿En qué sentido se encogen los coeficientes?
+
+\item  Repite el ejercicio anterior para lasso (sugerencia:  demuestra
+que el problema de lasso, en este caso, se puede resolver variable por variable. Divide en 
+casos para $\lambda$ y resuelve para un coeficiente). Compara cómo se encogen los coeficientes en comparación a ridge.
+
+\item Considera el problema de optimización de elastic-net:
+
+$$\min_{\beta} ||y-\underline{X}\beta||^2 + \lambda(\alpha||\beta||^2_2 + (1-\alpha)||\beta||_1).$$
+
+Demuestra que este problema se puede convertir en uno tipo lasso usando versiones
+aumentadas de $\underline{X}$ y $y$ (ver ejercicio anterior de ridge).
+
+
+\item 
+Considera el siguiente problema: tenemos $p=5000$ predictores y una
+muestra de $N=50$ casos, donde la respuesta es binaria 0-1. Un analista 
+seleccionó las 100 variables de entrada
+que tienen mayor correlación con la respuesta. Con estas 100 variables,
+construyó entonces un predictor ridge (o lasso o k-vmc) donde escogió el parámetro 
+de complejidad por validación cruzada. Su estimación por validación cruzada
+del error es de 0.03 de casos mal clasificados. Después de un tiempo, alguien
+le dijo que de hecho la respuesta se construyó con volados de una moneda
+justa. Discute: ¿Cuál va a ser el desempeño futuro del predictor del analista?
+¿Es realista la estimación de validación cruzada del analista?
+ ¿Qué está mal en esta aplicación de
+validación cruzada? 
+
+
+\item (Separabilidad en regresión logística) Supón que tenemos una
+sola entrada $x$, y que los casos de tipo 1 cumplen $x>0$ y los
+casos tipo 0 cumplen $x<0$. 
+\begin{itemize}
+\item Explica por qué el problema de minimización
+de la devianza no tiene solución. ¿Qué pasa con los coeficientes
+de $p_1(x;\beta)=h(\beta_0 + \beta_1 x)$? (una gráfica es suficiente).
+\item Muestra que si regularizamos (por ejemplo con ridge), 
+entonces el problema de minimización
+de la devianza penalizada tiene solución única.
+\end{itemize}
+
+
+
+
+
+\item (Entregar - regresión)
+La tecnologíaa de espectroscopía infraroja se usa para determinar
+la composición química de una sustancia, pues estructuras moleculares
+destintas absorben frecuencias de infrarrojo de manera diferente. En este
+ejemplo se analizaron 215 muestras de carne en 100 frecuencias. Adicionalmente
+se usó análisis químico para determinar el contenido (en \%) de agua,
+grasa, y proteína. En este ejemplo, queremos predecir el contenido de proteína
+de las muestras de carne en función solamente del espectro infrarrojo. Esto
+ahorraría tiempo y dinero, pues el análisis para obtener \% de grasa es más
+caro y toma más tiempo. 
+
+Los datos se llaman tecator, y están en el paquete caret. Puedes cargarlos con
+library(caret) y luego data(tecator). La matriz absorp contiene los 100
+valores de absorción para cada una de las 215 muestras, y la matriz
+endpoints contiene los porcentajes de humedad, grasa y proteína en
+ese orden.
+
+
+\begin{itemize}
+\item Divide los datos en una muestra de entrenamiento (75\%) y de prueba. Según la
+muestra de entrenamiento, ¿cuál es la tasa base de error? (usa raíz de error cuadrático medio).
+\item Haz gráficas de las variables de absorción. ¿Crees que la correlación
+entre estas variables es alta o baja? ¿Por qué?
+\item Ajusta un modelo lineal por mínimos cuadrados y evaluálo con la muestra de prueba.
+\item Usa validación cruzada para escoger el número de vecinos más cercanos. Evalúa con la muestra de prueba.
+\item Ahora ajusta modelos con penalización elastic-net. Usa validación cruzada
+para encontrar la mejor lambda para varias alpha (por ejemplo, 0,0.1,0.2 hasta 1). Escoge un modelo y evalúalo con la muestra de prueba.
+\item ¿Qué valores de alpha funcionaron bien? Qué mejora obtuviste con elastic-net sobre mínimos cuadrados? ¿Cómo se desempeñó k vecinos más cercanos?
+\end{itemize}
+
+\item En este ejemplo haremos predicción de polaridad de críticas de películas: buscamos
+clasificar una reseña como positiva o negativa dependiendo de su contenido. Usamos la representación de documentos de bolsa de palabras, que representa documentos de manera simple con la frecuencia con que ocurren palabras en cada documento. Hay código de preparación en ejercicio\_2\_codigo\_inicial.Rmd. Nota en particular que no es necesario que preproceses estos datos, puedes simplemente usar los archivos rds como en este script.
+
+\begin{itemize}
+\item Separa en muestra de entrenamiento (75\%) y de prueba. Según la muestra de entrenamiento, ¿cuál es la tasa base de error (error de clasificación incorrecta)?
+\item Utiliza lasso y escoge lambda con validación cruzada.
+\item Evalúa tu modelo con la muestra de prueba. ¿Cuál es su sensibilidad y especificidad?
+\item Muestra cuáles son las 15 palabras que indican más fuertemente que una reseña es positiva, y las 15 palabras que indican más fuertemente que una reseña es negativa.
+
+\end{itemize}
+
+
+
+\item (Entregar-simulación) Considera el siguiente modelo:
+$x\sim U(0,1)$, y $y= |x-1/2| + \epsilon$ con $\epsilon\sim N(0,1)$. Queremos usar
+3 vecinos más cercanos para predecir $y$ en función de $x$.
+
+Produce 100 muestras de entrenamiento de tamaño $n=30$, y una muestra de prueba grande.
+Usando error cuadrático medio, haz una gráfica que compare el error de entrenamiento
+con el error de predicción (condicional a la muestra de entrenamiento) para cada muestra
+de entrenamiento. Usa estas 100 muestras para estimar el error de predicción no condicional.
+¿Hay mucha variabilidad del error de predicción condicional obtenido alrededor del
+error no condicional?
+
+
+\end{enumerate}
+
+
+
+
+
+
+
+
+\end{document}

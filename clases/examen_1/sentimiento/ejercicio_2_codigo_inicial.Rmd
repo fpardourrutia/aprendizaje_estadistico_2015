@@ -1,0 +1,79 @@
+---
+title: "Polaridad de sentimiento"
+output: html_document
+---
+
+### Datos y preprocesamiento.
+
+```{r}
+library(dplyr)
+library(tidyr)
+library(ggplot2)
+library(Matrix)
+library(glmnet)
+```
+
+En este ejercicio intentamos clasificar críticas de películas 
+en positivas y negativas. Los datos que utilizamos son
+una colección de críticas utilizada en varios artículos ([ aquí hay más explicación y los datos, y artículos que los utilizaron ](http://www.cs.cornell.edu/people/pabo/movie-review-data/
+)).
+
+Usamos los datos preparados para la clase:
+
+```{r}
+documentos <- readRDS('datos/documentos.rds')
+doc_terminos <- readRDS('datos/documentos_terminos.rds')
+```
+
+
+Por ejemplo, aquí hay un ejemplo de una crítica positiva y otra negativa:
+
+```{r}
+set.seed(12)
+documentos %>% filter(polaridad=='positiva') %>% sample_n(1) %>% data.frame
+```
+
+```{r}
+documentos %>% filter(polaridad=='negativa') %>% sample_n(1) %>% data.frame
+```
+
+Para hacer nuestro modelo utilizamos el enfoque de **bolsa de palabras**, donde construimos una matriz de
+documentos-términos. En una matriz así los renglones corresponden
+a documentos y las columnas corresponden a palabras. Los valores de la
+matriz son la frecuencia de ocurrencia de cada palabra en el documento correspondiente.
+
+Por ejemplo, si el documento 1 es "el perro salta, el gato salta" y el documento 2 "el gato salta y salta", la matriz de documentos términos es
+
+```{r}
+mat_1 <- matrix(c(2,1,2,1,0,1,0,2,0,1) , nrow=2, byrow=T)
+colnames(mat_1) <- c('el','perro','salta','gato','y')
+mat_1
+```
+ 
+Y queremos usar estas frecuencias para predecir otra variable. Nótese que esta representación *no toma en cuenta el orden en que aparecen las palabras o su contexto (otras palabras alrededor)*, que es como separar todas las palabras de un documento, ponerlas en una bolsa y revolverlas (por eso bolsa de palabras). 
+
+Para este ejercicio ya tenemos calculada la matriz de documentos-términos. Esta es una matriz rala (muchos ceros), así que nos conviene siempre expresarla en
+notación (i,j, valor):
+
+```{r}
+doc_terminos
+```
+
+En este caso i es el documento, j el término, y frec el valor. En este ejemplo, solo consideramos los términos de 2 o más caracteres y que aparecen en 10 o más documentos.
+
+### Ojo: usa matrices ralas.
+
+Para usar `glmnet` con estos datos, convierte a matriz rala las entradas. Por ejemplo, 
+hacemos:
+
+```{r}
+dat <- doc_terminos %>% filter(id_doc %in% c(1,2,6,10,21))
+dat$indice_doc <- as.numeric(factor(dat$id_doc))
+dat$indice_term <- as.numeric(factor(dat$id_termino))
+X <- sparseMatrix(i = dat$indice_doc, j=dat$indice_term, x = dat$frec)
+nrow(X)
+ncol(X)
+```
+
+Si por error conviertes $X$ a una matriz usual, se puede acabar tu memoria, y glmnet tarda mucho más.
+
