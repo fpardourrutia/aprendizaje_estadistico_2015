@@ -1,0 +1,7 @@
+---
+layout: post
+title:  'Examen 1: instrucciones'
+categories: clase
+---
+
+[Material](https://www.dropbox.com/s/5dmliza7lfdv5pc/examen_1_AE.zip?dl=1). La fecha del examen es 30 de septiembre. Entregar impresos los ejercicios que se indican en el examen, con gráficas, tablas y salidas que soporten tus resultados y argumentos.
