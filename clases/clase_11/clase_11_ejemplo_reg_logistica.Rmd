@@ -1,0 +1,265 @@
+---
+title: "Regresión logística: ejemplo"
+author: "Felipe González"
+date: Otoño 2015
+output: 
+  html_document: 
+    theme: united
+---
+
+Consideramos datos desgregados de supervivencia de pasajeros del Titanic.
+Queremos predecir la supervivencia a partir de variables como sexo, edad, clase en que viajaba, etc.
+
+### Datos
+
+
+```{r, message=FALSE}
+library(readr)
+library(dplyr)
+library(tidyr)
+titanic <- read_csv('datos/train_titanic.csv')
+nrow(titanic)
+summary(titanic)
+```
+
+Aquí está una descripción de las variables:
+
+VARIABLE DESCRIPTIONS:
+
+survival        Survival
+                (0 = No; 1 = Yes)
+                
+pclass          Passenger Class
+                (1 = 1st; 2 = 2nd; 3 = 3rd)
+                
+name            Name
+
+sex             Sex
+
+age             Age
+
+sibsp           Number of Siblings/Spouses Aboard
+
+parch           Number of Parents/Children Aboard
+
+ticket          Ticket Number
+
+fare            Passenger Fare
+
+cabin           Cabin
+
+embarked        Port of Embarkation
+                (C = Cherbourg; Q = Queenstown; S = Southampton)
+
+```{r}
+print(titanic, width=300)
+```
+
+### Preparación de datos
+
+En un primer modelo intentamos modelar la supervivencia a
+partir de clase en que viajaba, sexo, edad, y tarifa.
+
+```{r}
+library(ggplot2)
+qplot(titanic$Age)
+table(is.na(titanic$Age))
+```
+
+Tenemos varios casos faltantes en edad. Podemos hacer una categoría
+adicional de "Desconocido" para poder hacer predicciones incluyendo este caso, y categorizamos las edades:
+
+```{r}
+quantile(titanic$Age, na.rm=T)
+titanic$age_cat <- cut(titanic$Age, 
+                       breaks = c(0,5,15,30,50,90),
+                       include.lowest = TRUE) 
+titanic$age_cat_na <- as.character(titanic$age_cat)
+titanic$age_cat_na[is.na(titanic$Age)] <- 'Unknown'
+titanic$age_cat_na <- factor(titanic$age_cat_na, 
+                          levels = c(levels(titanic$age_cat), 'Unknown'))
+table(titanic$age_cat_na)
+```
+
+
+### Algunos modelos
+
+
+Creamos una variable dummy para `Sex` y ajustamos un modelo:
+
+
+```{r}
+library(arm)
+titanic$sex_ind <- as.numeric(titanic$Sex == 'male')
+mod_1 <- bayesglm(Survived ~ sex_ind, data = titanic, family = 'binomial')
+display(mod_1)
+```
+
+La predicción de supervivencia para mujer es simplemente el intercept:
+
+```{r}
+invlogit(1.05)
+```
+
+y para hombre añadimos el coeficiente de sex_ind (indicadora de hombre):
+```{r}
+invlogit(1.05-2.50)
+```
+
+Podemos checar en los datos directamente:
+```{r}
+prop.table(table(titanic$Survived, titanic$Sex), 2)
+prop.table(table(titanic$Survived, titanic$sex_ind), 2)
+```
+
+Ahora agregamos más variables. No es necesario calcular
+cada dummy, pues `bayesglm` las calcula automáticamente:
+
+```{r}
+titanic$class <- factor(titanic$Pclass)
+mod_2 <- bayesglm(Survived ~ Sex + age_cat_na + class , 
+                  data = titanic, family = 'binomial')
+display(mod_2)
+```
+
+Podemos graficar las probabilidades:
+
+```{r}
+pred_grid <- expand.grid(Sex=c('male','female'),
+                         age_cat_na=unique(titanic$age_cat_na),
+                         class = unique(titanic$class))
+pred_grid
+pred_grid$prob_ajustada <- predict(mod_2, newdata = pred_grid, type='response')
+head(pred_grid)
+```
+
+Por ejemplo, vamos a reconstruir manualmente la primera de las probabilidades de esta tabla. Tomamos los coeficientes correspondientes de la tabla del modelo:
+
+```{r}
+invlogit(3.98-2.60-1.59-2.13)
+```
+
+Por ejemplo, para niñas de cinco años o menos en segunda clase la probabilidad es
+```{r}
+invlogit(3.98 + 0 + 0 -1.01)
+```
+
+
+
+```{r, fig.width=10}
+ggplot(filter(pred_grid, age_cat_na!='Unknown'), 
+       aes(x=age_cat_na, y=prob_ajustada, colour=class,
+                      group = class)) + geom_point() + geom_line() +
+  facet_wrap(~Sex)
+```
+
+¿Cómo podemos verificar la calidad de nuestros modelos? Hay varias 
+opciones, pero una que es útil es la gráfica de calibración:
+
+```{r}
+library(caret)
+obs_prob <- data_frame(Survived= factor(titanic$Survived, levels=c(1,0)),
+                      prob = predict(mod_2, type = 'response'))
+cal <- calibration(Survived ~ prob, obs_prob)
+cal_data <- cal$data %>% 
+  mutate(sd_percent = sqrt(Percent*(100-Percent)/Count))
+cal_data
+ggplot(cal_data, aes(x=midpoint, y=Percent, ymin=Percent-sd_percent,
+                     ymax = Percent + sd_percent)) +
+    geom_abline(slope=1,xintercept=0, colour= 'red') + geom_point() +
+  geom_linerange()
+```
+
+En el eje horizontal agrupamos las predicciones en intervalos (midpoint es
+el punto medio de estos intervalos). En el eje vertical calculamos el porcentaje de 1's en la respuesta *dentro de cada intervalo*. Desde este punto
+de vista, el ajuste es bueno cuando los puntos son consistentes la recta indentidad.
+
+Cuando vemos desajustes, podemos intentar con modelos más complejos, por ejemplo, incluyendo interacciones. Por ejemplo, podemos empezar
+agregando la interacción de sexo y edad:
+
+
+```{r, fig.width=10}
+mod_3 <- bayesglm(Survived ~ Sex + age_cat_na + class + age_cat_na:Sex +
+                    Sex:class + age_cat_na:class,                  
+                  data = titanic, family = 'binomial')
+display(mod_3)
+pred_grid$prob_ajustada <- predict(mod_3, newdata = pred_grid, type='response')
+ggplot(pred_grid,       
+       aes(x=age_cat_na, y=prob_ajustada, colour=class,group = class)) +
+        geom_point() + geom_line() + facet_wrap(~Sex)
+```
+
+Ojo: es mejor poner intervalos en estas gráficas, por ejemplo usando
+bootstrap.
+
+```{r}
+obs_prob <- data_frame(Survived= factor(titanic$Survived, levels=c(1,0)),
+                      prob = predict(mod_3, type = 'response'))
+cal <- calibration(Survived ~ prob, obs_prob)
+cal_data <- cal$data %>% 
+  mutate(sd_percent = sqrt(Percent*(100-Percent)/Count))
+cal_data
+ggplot(filter(cal_data, Count > 3) , aes(x=midpoint, y=Percent, ymin=Percent-sd_percent,
+                     ymax = Percent + sd_percent)) +
+    geom_abline(slope=1,xintercept=0, colour= 'red') + geom_point() +
+  geom_linerange()
+```
+
+
+### Predicción
+
+El enfoque anterior es el más usual en la modelación tradicional.
+Ahora usamos glmnet para hacer predicción.
+
+```{r}
+set.seed(20212)
+titanic$Embarked <- factor(titanic$Embarked)
+train_ind <- sample(1:nrow(titanic), 700) 
+train <- titanic[train_ind, ]
+test <- titanic[-train_ind, ]
+```
+
+Usamos algunas de las interacciones que encontramos interesantes en el modelo anterior:
+
+```{r}
+library(glmnet)
+x_train <- model.matrix(~sex_ind + class + age_cat_na + sex_ind:class +
+                    sex_ind:age_cat_na + class:age_cat_na + 
+                    Fare + Embarked+SibSp+Parch, data = train)
+head(x_train)
+y <- factor(train$Survived)
+net_1 <- cv.glmnet(y=y, x=x_train, alpha=0.5, family='binomial')
+plot(net_1)
+coef(net_1)
+```
+
+Y ahora probamos:
+
+```{r}
+x_test <- model.matrix(~sex_ind + class + age_cat_na + sex_ind:class +
+                    sex_ind:age_cat_na + class:age_cat_na + 
+                    Fare + Embarked+SibSp+Parch, data = test)
+probs <- predict(net_1, newx = x_test, type='response')
+clasif_surv <- probs > 0.5
+tab_1 <-  table(test$Survived ==as.numeric(clasif_surv))
+```
+
+La tasa de clasificación correcta es
+
+```{r}
+prop.table(tab_1)
+```
+
+
+### Nota
+
+La validación cruzada también puede hacerse con tasa de incorrectos
+en lugar de devianza binomail, aunque para seleccionar modelos
+generalmente preferimos la devianza:
+
+```{r}
+net_1 <- cv.glmnet(y=y, x=x_train, alpha=0.5, family='binomial',
+                   type.measure = 'class')
+plot(net_1)
+```
+
