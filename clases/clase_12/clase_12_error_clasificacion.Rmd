@@ -1,0 +1,228 @@
+---
+title: "Análisis de error para clasificadores"
+author: "Felipe González"
+date: Otoño 2015
+output: 
+  html_document: 
+    theme: united
+---
+
+### Matrices de confusión
+
+Consideramos el problema de clasificar los dígitos escritos a mano (recordamos que la imagen de cada dígito se representa con vector de 256=16x16 pixeles, que representan los niveles de gris de cada pixel de la imagen).
+
+```{r, message=FALSE, warning=FALSE}
+library(dplyr)
+library(tidyr)
+library(ElemStatLearn)
+library(glmnet)
+library(readr)
+library(e1071)
+data(zip.train)
+nrow(zip.train)
+dim(zip.train)
+set.seed(28001)
+train_full <- data.frame(zip.train)
+train <- train_full %>% sample_n(2000)  ## para que corra más rápido el documento - puedes correrlo después con todos los datos.
+test <- data.frame(zip.train)
+train$digito <- factor(train$X1)
+test$digito <- factor(test$X1)
+train$X1 <- NULL
+test$X1 <- NULL
+```
+
+Por ejemplo, podemos usar Bayes ingenuo:
+
+
+```{r}
+#naiveBayes de paquete e1071
+model_nb <- naiveBayes(digito ~ ., data = train, laplace = T)
+preds_digito_nb <- predict(model_nb, newdata = test)
+```
+
+La tasa de error es de
+```{r}
+mean(preds_digito_nb!=test$digito)
+```
+
+y la matriz de confusión es
+
+```{r}
+confusion_nb <- table(test$digito, preds_digito_nb)
+confusion_nb
+```
+
+```{r}
+tab_x <- round(prop.table(confusion_nb, 2),2)
+tab_x[tab_x < 0.02] <- ''
+tab_x
+```
+
+¿Qué digitos está confundiendo el clasificador? ¿Cuáles son los dígitos donde la tasa de error es mayor?
+
+Podemos intentar también regresión logística multinomial regularizada con L2 (ridge):
+
+```{r}
+train_x <- as.matrix(train %>% dplyr::select(-digito))
+test_x <- as.matrix(test %>% dplyr::select(-digito))
+mod_reg <- cv.glmnet(x=train_x, y=train$digito,  
+                     alpha=0.0, family='multinomial')
+preds_digito_reg <- predict(mod_reg, newx = test_x, type ='class')
+
+```
+
+La tasa de error es ahora
+
+```{r}
+mean(preds_digito_reg!=test$digito)
+```
+
+Y la matriz de confusión:
+
+```{r}
+confusion_reg <- table(preds_digito_reg, test$digito)
+confusion_reg
+```
+
+
+```{r}
+tab_y <- round(prop.table(confusion_reg, 2),2)
+tab_y[tab_y<0.02] <- ''
+tab_y
+```
+
+
+### Sensibilidad y especificidad
+
+Ahora consideramos el problema de dos clases (titanic) de la clase pasada.
+```{r, message=FALSE}
+titanic <- read_csv('datos/train_titanic.csv')
+nrow(titanic)
+titanic$age_cat <- cut(titanic$Age, 
+                       breaks = c(0,5,15,30,50,90),
+                       include.lowest = TRUE) 
+titanic$age_cat_na <- as.character(titanic$age_cat)
+titanic$age_cat_na[is.na(titanic$Age)] <- 'Unknown'
+titanic$age_cat_na <- factor(titanic$age_cat_na, 
+                          levels = c(levels(titanic$age_cat), 'Unknown'))
+set.seed(20212)
+titanic$Embarked <- factor(titanic$Embarked)
+titanic$class <- factor(titanic$Pclass)
+train_ind <- sample(1:nrow(titanic), 600) 
+train <- titanic[train_ind, ]
+test <- titanic[-train_ind, ]
+prop.table(table(train$Survived))
+```
+
+Y ahora usamos elastic net (ver clase anterior):
+
+```{r}
+x_train <- model.matrix(~Sex + class + age_cat_na + Sex:class +
+                    Sex:age_cat_na + class:age_cat_na + 
+                    Fare + Embarked+SibSp+Parch, data = train)
+y <- factor(train$Survived)
+net_1 <- cv.glmnet(y=y, x=x_train, alpha=0.5, family='binomial')
+x_test <- model.matrix(~Sex + class + age_cat_na + Sex:class +
+                    Sex:age_cat_na + class:age_cat_na + 
+                    Fare + Embarked+SibSp+Parch, data = test)
+pred_clase <- predict(net_1, newx = x_test, type='class')
+
+```
+
+El error de clasificación es
+```{r}
+mean(pred_clase!=test$Survived)
+```
+
+La matriz de confusión es
+
+```{r}
+confusion <- table(pred_clase, test$Survived)
+confusion
+confusion_prop <- prop.table(confusion, 2)
+round(confusion_prop,2)
+```
+
+La especificidad es `r round(confusion_prop[1,1],2)` y la
+sensibilidad es `r round(confusion_prop[2,2],2)`. Como vemos,
+la sensibilidad no es muy buena para este clasificador. 
+
+
+### Curva ROC
+
+Sensibilidad y especificidad en el ejemplo anterior se obtienen
+tomando como punto de corte de las probabilidades 0.5 (como en pérdida 0-1). Podemos variar el punto de corte para entender qué perfiles de especificidad y sensibilidad podemos obtener.
+
+```{r, fig.width=7, fig.height=6}
+library(ROCR)
+prob_pred <- predict(net_1, newx = x_test, type='response')
+pred_obj <- prediction(prob_pred, test$Survived)
+pref_reg <- performance(pred_obj, measure='sens', x.measure='fpr')
+plot(pref_reg, colorize = TRUE)
+abline(a=0,b=1, col = 'red')
+```
+
+Podemos cortar más abajo para capturar más positivos y mejorar considerablemente la sensibilidad, por ejemplo:
+
+```{r}
+table(prob_pred>0.2, test$Survived) %>% prop.table(2) %>% round(2)
+```
+
+### Curvas ROC para comparar modelos
+
+Supongamos que ajustamos otro modelo, por ejemplo naive bayes
+
+```{r, fig.width=7, fig.height=6}
+library(e1071)
+train$Sex <- factor(train$Sex)
+test$Sex <- factor(test$Sex)
+model_nb <- naiveBayes(Survived ~ Sex + class + age_cat_na + 
+                         Fare+Embarked + SibSp+Parch, 
+                       data = train, laplace = T)
+
+prob_pred_2 <- predict(model_nb,  
+                       newdata = test %>% dplyr::select(Sex,class,age_cat_na, Fare,Embarked,SibSp,Parch), type='raw')[,2]
+
+pred_obj <- prediction(prob_pred_2, test$Survived)
+pref_reg_2 <- performance(pred_obj, measure='sens', x.measure='fpr')
+plot(pref_reg)
+plot(pref_reg_2, add =T, col ='red')
+abline(a=0,b=1, col = 'red')
+```
+
+Vemos que el desempeño de estos dos modelos es similar. Regresión parece ser ligeramente
+mejor para especificidad alta, mientras que bayes ingenuo es ligeramente mejor para 
+sensibilidad alta.
+
+### Adicional: intervalos de confianza para curvas ROC
+
+Como estamos usando una muestra relativamente chica de prueba, conviene entender
+cuánta incertidumbre hay en la estimación de las curvas ROC. En este caso, 
+calculamos mediante bootstrap replicaciones de la muestra de prueba, y calculamos
+una curva ROC para cada replicación.
+
+En este caso lo hacemos para el clasificador de bayes ingenuo:
+
+```{r}
+test_filt <- test %>% dplyr::select(Survived, Sex,class,age_cat_na, Fare,Embarked,SibSp,Parch)
+boot_roc <- function(modelo, prueba){
+  ind_bs <- sample(1:nrow(prueba), nrow(prueba), replace = T)
+  test_bs <- prueba[ind_bs, ]
+  prob_bs <- predict(modelo,  test_bs, type='raw')[,2]
+  pred_obj <- prediction(prob_bs, test_bs$Survived)
+  perf <- performance(pred_obj, measure='sens', x.measure='fpr')
+  perf
+}
+#boot_roc(model_nb, test_filt)
+```
+
+```{r, fig.width=7, fig.height=6}
+plot(pref_reg_2, col='red')
+out <- lapply(1:50, function(i){
+  plot(boot_roc(model_nb, test_filt), add = T, col='gray')
+})
+plot(pref_reg_2, add =T, col='red')
+```
+
+Y vemos que hay variación considerable en nuestra estimación. Esto hay que tomarlo
+en cuenta al comparar clasificadores.
