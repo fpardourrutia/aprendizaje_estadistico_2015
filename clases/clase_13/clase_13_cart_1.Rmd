@@ -1,0 +1,139 @@
+---
+title: "CART: 1a parte"
+author: "Felipe González"
+date: Otoño 2015
+output: 
+  html_document: 
+    theme: united
+---
+
+Consideramos los datos de correos spam.
+
+Construyendo árboles
+---
+
+
+```{r}
+library(readr)
+entrena <- read_csv('datos/spam_entrena.csv', 
+                         col_types = paste0(c('i', rep('d', 57),'c'), collapse=''))
+prueba <- read_csv('datos/spam_prueba.csv',
+                        col_types = paste0(c('i', rep('d', 57),'c'), collapse=''))
+head(entrena)
+entrena$`[EMPTY]` <- NULL
+prueba$`[EMPTY]` <- NULL
+```
+
+```{r}
+library(rpart)    			   
+library(rpart.plot)
+```
+
+
+Primero hacemos crecer un árbol grande usando el proceso de división que
+discutimos:
+
+```{r, dev='pdf'}
+set.seed(22)
+completo <- rpart.control(cp = 0, minsplit = 5, minbucket = 1, xval = 10, maxdepth = 30)
+spam_completo <- rpart(spam ~ ., data = entrena, method = "class", control = completo)
+prp(spam_completo, type=4, extra=4)
+```
+
+Podemos ver subárboles más chicos creados durante el procedimiento de división
+de nodos (prp está el paquete rpart.plot). En cada nodo se muestra
+la predicción de clase (más popular en el nodo), el porcentaje de casos de cada
+clase, y el porcentaje del total de casos que caen en el nodo:
+
+```{r}
+arbol_1 <- prune(spam_completo, cp = 0.07)
+prp(arbol_1, type = 4, extra = 104)
+```
+
+```{r}
+arbol_2 <- prune(spam_completo, cp=0.05)
+prp(arbol_2, type = 4, extra = 104)
+```
+
+
+```{r}
+arbol_3 <- prune(spam_completo, cp=0.02)
+prp(arbol_3, type = 4, extra = 104)
+```
+
+La función prp tiene muchos parámetros, por ejemplo, fancyRplot del paquete rattle se basa en prp:
+
+```{r}
+source('fancyRpartPlot.R')
+fancyRpartPlot(arbol_3)
+```
+
+
+Variabilidad en el proceso de construcción
+---
+
+Existe variabilidad considerable en el proceso de división.  Por ejemplo:
+
+```{r}
+set.seed(9927812)
+muestra <- entrena[sample(1:nrow(entrena), nrow(entrena), replace=T), ]
+spam_completo_1 <-rpart(spam ~ ., data =  muestra, method = "class",
+                          control = completo)
+arbol_1 <- prune(spam_completo_1, cp=0.03)
+prp(arbol_1, type = 4, extra = 4)
+```
+
+```{r}
+muestra <- entrena[sample(1:nrow(entrena), nrow(entrena), replace=T), ]
+spam_completo_1 <-rpart(spam ~ ., data =  muestra, method = "class",
+                          control = completo)
+arbol_1 <- prune(spam_completo_1, cp=0.03)
+prp(arbol_1, type = 4, extra = 4)
+```
+
+
+Desempeño del árbol grande
+--
+
+Usualmente el primer árbol grande está sobreajustado. Podemos comparar
+desempeño de prueba con clasificación de entrenamiento:
+
+
+```{r}
+predicted <- predict(spam_completo , type="class")
+print(1 - mean(predicted == entrena$spam), digits = 2)
+table(predicted, entrena$spam)
+print(prop.table(table(predicted, entrena$spam),2))
+```
+
+Pero el desempeño no es tan bueno:
+
+```{r}
+clase_pred <- predict(spam_completo, prueba, type='class')
+print(1-mean(clase_pred == prueba$spam),digits=2)
+table(clase_pred, prueba$spam)
+prop.table(table(clase_pred, prueba$spam), 2)
+```
+
+Un árbol más chico da mejores resultados, por ejemplo:
+
+```{r}
+arbol_3 <- prune(spam_completo, cp=0.0015)
+prp(arbol_3)
+```
+El error de entrenamiento es
+```{r}
+clase_pred <- predict(arbol_3, entrena, type='class')
+print(1-mean(clase_pred == entrena$spam),digits=2)
+```
+
+y el error de prueba es un poco más bajo:
+
+```{r}
+clase_pred <- predict(arbol_3, prueba, type='class')
+print(1-mean(clase_pred == prueba$spam),digits=2)
+table(clase_pred, prueba$spam)
+prop.table(table(clase_pred, prueba$spam), 2)
+```
+
+
