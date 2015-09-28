@@ -1,6 +1,6 @@
 ---
 layout: post
-title:  'Regresión logística'
+title:  'Clase 11: Regresión logística'
 categories: clase
 ---
 

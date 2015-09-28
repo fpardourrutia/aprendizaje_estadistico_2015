@@ -1,6 +1,6 @@
 ---
 layout: post
-title:  'Naive Bayes y regresión logística'
+title:  'Clase 10: Naive Bayes y regresión logística'
 categories: clase
 ---
 

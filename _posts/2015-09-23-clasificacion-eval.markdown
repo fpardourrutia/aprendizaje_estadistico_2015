@@ -1,6 +1,6 @@
 ---
 layout: post
-title:  'Evaluación de clasificadores'
+title:  'Clase 12: Evaluación de clasificadores'
 categories: clase
 ---
 
