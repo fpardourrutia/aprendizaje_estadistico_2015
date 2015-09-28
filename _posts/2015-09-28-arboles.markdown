@@ -1,0 +1,7 @@
+---
+layout: post
+title:  'Clase 13: Árboles (CART), 1a parte'
+categories: clase
+---
+
+[Material]( https://www.dropbox.com/s/wk6gex1yx5m80te/clase_13.zip?dl=1), [Notas](https://www.dropbox.com/s/3x6p4al53rl4glz/Notas_AE_13.pdf?dl=1)
