@@ -1,0 +1,170 @@
+---
+title: "Ejercicios - solución"
+author: "FG"
+date: "October 5, 2015"
+output: html_document
+---
+
+```{r}
+library(dplyr)
+library(tidyr)
+library(ggplot2)
+library(glmnet)
+library(caret)
+```
+
+
+# Ejercicio 11
+
+```{r}
+data(tecator)
+head(absorp)
+head(endpoints)
+```
+
+Construir tabla
+
+```{r}
+datos <- absorp %>% data.frame()
+datos$proteina <- endpoints[,3]
+datos$id <- 1:nrow(datos)
+set.seed(28801)
+indices_e <- sample(1:nrow(datos), floor(0.75*nrow(datos)))
+datos_e <- datos[indices_e, ]
+datos_p <- datos[-indices_e, ]
+nrow(datos_e)
+nrow(datos_p)
+
+```
+
+La tasa base de error es
+
+```{r}
+media_e <- mean(datos_e$proteina)
+sqrt(mean((datos_p$proteina-media_e)^2))
+```
+
+
+### Datos
+
+Las columnas son mediciones en distintos puntos de curvas:
+
+```{r}
+dat_e <- datos_e %>% dplyr::select(-proteina) %>%
+  gather(wl, valor, -id) %>%
+  separate(wl, c('x', 'num_1'), 'X') %>%
+  mutate(num = as.numeric(num_1))
+ggplot(dat_e, aes(x=num, y=valor, group=id)) + geom_line()
+```
+
+La correlación de variables es muy alta, por ejemplo,
+```{r}
+mat_cor <- cor(datos_e %>% dplyr::select(-id,-proteina))
+quantile(as.numeric(mat_cor))
+```
+
+Usamos primero mínimos cuadrados:
+
+```{r}
+mod_mc <- lm(proteina ~ ., datos_e %>% dplyr::select(-id))
+preds_mc <- predict(mod_mc, newdata = datos_p)
+sqrt(mean((datos_p$proteina - preds_mc)^2))
+```
+
+Ahora hacemos vecinos más cercanos (escogiendo con validación cruzada):
+
+```{r}
+
+library(kknn)
+control <- trainControl(method = "cv", number = 10)
+grid <- expand.grid(list(kmax=c(1,2,3,4,5,6,7,8,9,10), kernel = 'rectangular', distance = 2))
+set.seed(84924)
+vmc_caret <- train(datos_e %>% dplyr::select(-id, -proteina) , 
+                   datos_e$proteina, 
+                   method = "kknn", 
+                   trControl = control,
+                   tuneGrid = grid,
+                   preProc = c("center", "scale"))
+vmc_caret
+```
+
+
+Y evaluamos
+
+```{r}
+preds_vmc <- predict(vmc_caret, new = datos_p %>% dplyr::select(-id, -proteina))
+sqrt(mean((preds_vmc - datos_p$proteina)^2))
+```
+
+Que tiene peor desempeño que mínimos cuadrados. Ahora hacemos glmnet. 
+
+```{r}
+
+control <- trainControl(method = "cv", number = 10)
+grid <- expand.grid(list(alpha=seq(0,1,0.1), lambda=exp(seq(-10,1,1))))
+
+set.seed(849224)
+caret_glmnet <- train(datos_e %>% dplyr::select(-id, -proteina) %>% as.matrix, 
+                   datos_e$proteina, 
+                   method = 'glmnet', 
+                   trControl = control,
+                   tuneGrid = grid, maxit=1e6)
+caret_glmnet
+plot(caret_glmnet, xTrans = log)
+```
+
+```{r}
+caret_glmnet$bestTune
+preds_glmnet <- predict(caret_glmnet, newdata = datos_p %>% dplyr::select(-id, -proteina) %>% as.matrix)
+sqrt(mean((preds_glmnet - datos_p$proteina)^2))
+```
+
+
+# Ejercicio 12
+
+
+```{r}
+library(readr)
+docs <- readRDS(file = './sentimiento/datos/documentos.rds')
+doc_terms <- readRDS(file = './sentimiento/datos/documentos_terminos.rds')
+```
+
+```{r}
+library(Matrix)
+X <- sparseMatrix(i = doc_terms$id_doc, j = doc_terms$id_termino, x = doc_terms$frec)
+y <- docs$polaridad
+set.seed(1200)
+indices_e <- sample(1:nrow(X), floor(0.75*nrow(X)))
+X_e <- X[indices_e,]
+y_e <- y[indices_e]
+X_p <- X[-indices_e,]
+y_p <- y[-indices_e]
+cv_1 <- cv.glmnet(x=X_e, y=y_e, alpha=1.0, family = 'binomial', lambda=exp(seq(-10,10,0.5)))
+plot(cv_1)
+```
+
+```{r}
+preds <- predict(cv_1, newx = X_p, type='response')
+tab_1 <- table(preds > 0.5, y_p)
+(tab_1[1,1]+tab_1[2,2])/sum(tab_1)
+prop.table(tab_1, 2)
+```
+
+```{r}
+library(stringr)
+coeficientes <- coef(cv_1)[,1][-1]
+id_termino <- rownames(coef(cv_1))[-1] %>% str_sub(start=2) %>% as.integer
+coef_1 <- data_frame(coef = coeficientes, id_termino = id_termino)
+terminos <- doc_terms %>% group_by(id_termino, termino) %>% summarise(frec_total = sum(frec))
+coefs_nom <- coef_1 %>% left_join(terminos)
+```
+
+```{r}
+arrange(coefs_nom %>% filter(frec_total > 0), desc(coef)) %>% print(n=15)
+arrange(coefs_nom %>% filter(frec_total > 0), coef) %>% print(n=15)
+```
+
+```{r}
+arrange(coefs_nom %>% filter(frec_total > 50), desc(coef)) %>% print(n=15)
+arrange(coefs_nom %>% filter(frec_total > 50), coef) %>% print(n=15)
+```
