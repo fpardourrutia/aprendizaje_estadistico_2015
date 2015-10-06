@@ -28,13 +28,12 @@ Construir tabla
 datos <- absorp %>% data.frame()
 datos$proteina <- endpoints[,3]
 datos$id <- 1:nrow(datos)
-set.seed(28801)
+set.seed(288201)
 indices_e <- sample(1:nrow(datos), floor(0.75*nrow(datos)))
 datos_e <- datos[indices_e, ]
 datos_p <- datos[-indices_e, ]
 nrow(datos_e)
 nrow(datos_p)
-
 ```
 
 La tasa base de error es
@@ -86,7 +85,10 @@ vmc_caret <- train(datos_e %>% dplyr::select(-id, -proteina) ,
                    tuneGrid = grid,
                    preProc = c("center", "scale"))
 vmc_caret
+vmc_caret$bestTune
 ```
+
+
 
 
 Y evaluamos
@@ -99,24 +101,64 @@ sqrt(mean((preds_vmc - datos_p$proteina)^2))
 Que tiene peor desempeño que mínimos cuadrados. Ahora hacemos glmnet. 
 
 ```{r}
+set.seed(221)
+alpha = seq(0,1,0.1)
+modelos <- lapply(alpha, function(a){
+      print(a)
+      mod_1 <- cv.glmnet(x = datos_e %>% dplyr::select(-id, -proteina) %>% as.matrix,
+                         y = datos_e$proteina, 
+                         alpha=a, lambda=exp(seq(-10,1,0.5)),
+                         maxit = 6e5)
+      list(alpha = a, mod = mod_1)
+})
 
-control <- trainControl(method = "cv", number = 10)
-grid <- expand.grid(list(alpha=seq(0,1,0.1), lambda=exp(seq(-10,1,1))))
+dat_cv <- lapply(modelos, function(x){
+  mod = x$mod
+  data_frame(cvm = mod$cvm, lambda = mod$lambda, alpha = x$alpha)
+} )
+head(dat_cv)
+dat_g <- bind_rows(dat_cv)
+ggplot(dat_g, aes(x=lambda, y=cvm, group=alpha, colour=factor(alpha))) + geom_line() + scale_x_log10()
+dat_g[which.min(dat_g$cvm),]
+```
+ 
+El desempeño es similar para los distintos tipos de regularización.
 
-set.seed(849224)
-caret_glmnet <- train(datos_e %>% dplyr::select(-id, -proteina) %>% as.matrix, 
-                   datos_e$proteina, 
-                   method = 'glmnet', 
-                   trControl = control,
-                   tuneGrid = grid, maxit=1e6)
-caret_glmnet
-plot(caret_glmnet, xTrans = log)
+```{r}
+mod_selec <- modelos[[1]]$mod
+plot(mod_selec)
+preds <- predict(mod_selec, newx = datos_p %>% dplyr::select(-id, -proteina) %>% as.matrix)
+sqrt(mean((preds-datos_p$proteina)^2))
+```
+
+Que es comparable al error de  mínimos cuadrados. La diferencia grande,
+sin embargo, es la suavidad de los coeficientes:
+```{r}
+qplot(1:100,coef(mod_selec)[-1], geom="line") + geom_hline(yintercept=0)
+qplot(1:100, coef(mod_mc)[-1], geom="line") + geom_hline(yintercept=0)
+```
+El modelo ridge es más interpretable y parsimonioso. Podemos verificar nuestro hallazgo de los coeficientes:
+```{r}
+dat_e <- datos_e %>% dplyr::select(-proteina) %>%
+  gather(wl, valor, -id) %>%
+  separate(wl, c('x', 'num_1'), 'X') %>%
+  mutate(num = as.numeric(num_1)) %>% 
+  left_join(datos_e %>% dplyr::select(id, proteina))
+dat_e$proteina_cat <- cut(dat_e$proteina, breaks=quantile(dat_e$proteina),
+                          include.lowest = T)
+ggplot(filter(dat_e, num < 40), 
+       aes(x=num, y=valor, group=id, colour=proteina_cat)) + geom_line() +
+  facet_wrap(~proteina_cat)
 ```
 
 ```{r}
-caret_glmnet$bestTune
-preds_glmnet <- predict(caret_glmnet, newdata = datos_p %>% dplyr::select(-id, -proteina) %>% as.matrix)
-sqrt(mean((preds_glmnet - datos_p$proteina)^2))
+dat_eg <- dat_e %>% 
+  mutate(cat_num = cut(num, breaks = c(1,10,20,30,40,50,60,70,80,90,100), include.lowest = T)) %>%
+  group_by(id, cat_num) %>%
+  summarise(valor_media = mean(valor), proteina_cat=proteina_cat[1]) %>% 
+  spread(cat_num, valor_media)
+ggplot(dat_eg, aes(x=`[1,10]`, y=`(20,30]`, colour=proteina_cat)) + geom_point(size=3)
+ggplot(dat_eg, aes(x=`[1,10]`, y=`(20,30]`/`[1,10]`, colour=proteina_cat)) + geom_point(size=3)
 ```
 
 
@@ -131,7 +173,7 @@ doc_terms <- readRDS(file = './sentimiento/datos/documentos_terminos.rds')
 
 ```{r}
 library(Matrix)
-X <- sparseMatrix(i = doc_terms$id_doc, j = doc_terms$id_termino, x = doc_terms$frec)
+X <- sparseMatrix(i = doc_terms$id_doc, j = doc_terms$id_termino, x = log(1+doc_terms$frec))
 y <- docs$polaridad
 set.seed(1200)
 indices_e <- sample(1:nrow(X), floor(0.75*nrow(X)))
@@ -159,12 +201,19 @@ terminos <- doc_terms %>% group_by(id_termino, termino) %>% summarise(frec_total
 coefs_nom <- coef_1 %>% left_join(terminos)
 ```
 
+Los coeficientes más fuertes son los siguientes. Nótese que existen varios
+términos muy particulares (géneros, actores) asociados a buenas o malas
+reseñas. Estos son informativos de positivo/negativo por el contenido:
+
 ```{r}
 arrange(coefs_nom %>% filter(frec_total > 0), desc(coef)) %>% print(n=15)
 arrange(coefs_nom %>% filter(frec_total > 0), coef) %>% print(n=15)
 ```
 
+Podemos ver términos más generales filtrando por frecuencia de ocurrencia, más
+informativos de positivo/negativo por la manera de escribir y los términos generales usados:
+
 ```{r}
-arrange(coefs_nom %>% filter(frec_total > 50), desc(coef)) %>% print(n=15)
-arrange(coefs_nom %>% filter(frec_total > 50), coef) %>% print(n=15)
+arrange(coefs_nom %>% filter(frec_total > 200), desc(coef)) %>% print(n=15)
+arrange(coefs_nom %>% filter(frec_total > 200), coef) %>% print(n=15)
 ```
