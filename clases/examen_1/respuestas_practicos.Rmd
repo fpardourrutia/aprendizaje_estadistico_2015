@@ -29,6 +29,7 @@ datos <- absorp %>% data.frame()
 datos$proteina <- endpoints[,3]
 datos$id <- 1:nrow(datos)
 set.seed(288201)
+#set.seed(120364)
 indices_e <- sample(1:nrow(datos), floor(0.75*nrow(datos)))
 datos_e <- datos[indices_e, ]
 datos_p <- datos[-indices_e, ]
@@ -160,6 +161,30 @@ dat_eg <- dat_e %>%
 ggplot(dat_eg, aes(x=`[1,10]`, y=`(20,30]`, colour=proteina_cat)) + geom_point(size=3)
 ggplot(dat_eg, aes(x=`[1,10]`, y=`(20,30]`/`[1,10]`, colour=proteina_cat)) + geom_point(size=3)
 ```
+
+### Nota
+En este ejemplo la muestra de prueba es bastante chica, así que
+tenemos que tener cuidado en interpretarla. Lo mejor es obtener intervalos
+de confianza para las estimaciones del error.
+
+Por ejemplo, podríamos hacer:
+
+```{r}
+residuales_r <- preds-datos_p$proteina
+boot_error <- function(x){
+  boot_x <- x[sample(length(x), replace = T)]
+  sqrt(mean(boot_x^2))
+}
+reps <- sapply(1:200, function(i) boot_error(residuales_r))
+```
+
+Y el error estándar de nuestra estimación de error para el modelo ridge es de 
+```{r}
+sd(reps)
+```
+
+
+
 
 
 # Ejercicio 12
