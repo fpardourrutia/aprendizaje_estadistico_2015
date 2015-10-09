@@ -1,0 +1,150 @@
+---
+title: "Ejemplos de bootstrap"
+author: "Felipe González"
+date: Otoño 2015
+output: 
+  html_document: 
+    theme: united
+---
+```{r}
+library(ggplot2)
+library(dplyr)
+```
+
+### Error estándar y bootstrap: media 
+
+
+Consideramos una muestra dada:
+```{r}
+n <- 35
+set.seed(22813)
+x <- rpois(n, lambda = 5)
+x
+```
+
+Supongamos que buscamos estimar media con el estimador usual:
+
+```{r}
+x_barra <- mean(x)
+x_barra
+```
+
+Usando la teoría, podemos calcular el error estándar de $\bar{x}$
+como
+```{r}
+s <- sd(x)
+ee <- s/sqrt(n)
+ee
+```
+
+Ahora hacemos el procedimiento usando bootstrap. El primer paso es
+obtener muestras con reemplazo de la muestra original **del mismo tamaño
+que la muestra original**, por ejemplo:
+
+```{r}
+reps_bootstrap <- lapply(1:5000, function(i){
+  sample(x, n, replace = T)
+})
+reps_bootstrap[1:10]
+```
+
+Y calculamos el estadístico de interés (la media) para cada una de
+estas muestras:
+```{r}
+reps_media <- sapply(reps_bootstrap, mean)
+reps_media[1:10]
+```
+
+Ya ahora estudiamos la variablidad de estas replicaciones bootstrap
+para inferir la variabilidad de nuestra estimación original. 
+```{r, fig.width=4, fig.height=3}
+qplot(reps_media, binwidth = 0.1)
+```
+
+La **estimación boostrap del error estándar** se calcula tomando la
+desviación estándar de esta última distribución (de las replicaciones bootstrap):
+
+```{r}
+sd(reps_media)
+```
+
+Compárese con la estimación usual:
+```{r}
+s/sqrt(n)
+```
+
+Si corregimos
+
+```{r}
+sqrt((n-1)/n)*s/sqrt(n)
+```
+
+### Error estándar y bootstrap: correlación
+
+Consideramos correlación entre rendimiento (mpg) y potencia (hp) de una muestra
+de coches:
+
+```{r}
+dat <- mtcars %>% select(mpg, hp)
+cor(dat)
+```
+
+¿Cómo calcular el error estándar de la correlación muestral?
+Podemos hacer bootstrap:
+
+```{r}
+reps_boot <- lapply(1:500, function(i){
+  dat[sample(1:nrow(dat), nrow(dat), replace = T), ]
+})
+reps_boot[1:2]
+```
+
+```{r, fig.width=4, fig.height=3}
+reps_corr <- sapply(reps_boot, function(datos){ cor(datos)[1,2] })
+reps_corr[1:10]
+qplot(reps_corr, binwidth=0.01)
+```
+
+Y el error estándar es:
+```{r}
+sd(reps_corr)
+```
+
+### Error estándar y bootstrap: modelos lineales
+
+Podemos también obtener error estándar para estimadores de coeficientes de regresión. En nuestro ejemplo anterior, por ejemplo, tenemos
+
+```{r}
+mod <- lm(mpg~hp, data=dat)
+mod
+```
+
+Usando las fórmulas usuales,
+```{r}
+summary(mod)
+```
+
+Ahora lo hacemos con bootstrap. Ajustamos el modelo repetidamente a muestras bootstrap:
+
+```{r}
+modelos_boot <- lapply(reps_boot, function(df) { lm(mpg~hp, data=df) })
+modelos_boot[1:5]
+```
+
+Extraemos el coeficiente de hp:
+```{r, fig.width=4, fig.height=3}
+hp_boot <- sapply(modelos_boot, function(m) coef(m)[2])
+hp_boot[1:10]
+qplot(hp_boot)
+```
+
+Y calculamos error estándar:
+
+```{r}
+sd(hp_boot)
+```
+
+Este error estándar es ligeramente más alto que el que calculamos arriba con `summary`. ¿Por qué? (piensa en X fija o aleatoria).
+
+
+
