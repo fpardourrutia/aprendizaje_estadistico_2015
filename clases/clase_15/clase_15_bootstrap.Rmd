@@ -147,4 +147,24 @@ sd(hp_boot)
 Este error estándar es ligeramente más alto que el que calculamos arriba con `summary`. ¿Por qué? (piensa en X fija o aleatoria).
 
 
+### Error estándar y bootstrap: splines de regresión
+
+Podemos evaluar otros procedimientos estadísticos más complejos, por ejemplo usando
+splines:
+```{r, warning = FALSE}
+library(scales)
+library(splines)
+reps_boot_ind <- lapply(1:length(reps_boot), function(i){
+  dat <- reps_boot[[i]]
+  dat$rep <- i
+  dat})
+dat_boot <- bind_rows(reps_boot_ind[1:500])
+ggplot(dat_boot, aes(x = hp, y = mpg)) +
+  geom_smooth(aes(group = rep), 
+              method = 'lm',formula = y ~ ns(x, df = 3),
+              se = FALSE, fullrange=T,
+              colour = alpha('red', 0.1)) + geom_point(data = dat) 
+```
+
+
 
