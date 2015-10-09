@@ -138,7 +138,7 @@ sin embargo, es la suavidad de los coeficientes:
 qplot(1:100,coef(mod_selec)[-1], geom="line") + geom_hline(yintercept=0)
 qplot(1:100, coef(mod_mc)[-1], geom="line") + geom_hline(yintercept=0)
 ```
-El modelo ridge es más interpretable y parsimonioso. Podemos verificar nuestro hallazgo de los coeficientes:
+El modelo ridge es más interpretable y parsimonioso. Podemos verificar  hallazgos de los coeficientes con algunas gráficas:
 ```{r}
 dat_e <- datos_e %>% dplyr::select(-proteina) %>%
   gather(wl, valor, -id) %>%
@@ -152,6 +152,7 @@ ggplot(filter(dat_e, num < 40),
   facet_wrap(~proteina_cat)
 ```
 
+Y vemos cómo separamos los casos de contenido de proteína más bajo:
 ```{r}
 dat_eg <- dat_e %>% 
   mutate(cat_num = cut(num, breaks = c(1,10,20,30,40,50,60,70,80,90,100), include.lowest = T)) %>%
@@ -161,6 +162,11 @@ dat_eg <- dat_e %>%
 ggplot(dat_eg, aes(x=`[1,10]`, y=`(20,30]`, colour=proteina_cat)) + geom_point(size=3)
 ggplot(dat_eg, aes(x=`[1,10]`, y=`(20,30]`/`[1,10]`, colour=proteina_cat)) + geom_point(size=3)
 ```
+
+```{r}
+qplot(preds[,1], datos_p$proteina)
+```
+
 
 ### Nota
 En este ejemplo la muestra de prueba es bastante chica, así que

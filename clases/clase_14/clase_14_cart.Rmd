@@ -7,6 +7,8 @@ output:
     theme: united
 ---
 
+### Árboles de clasificación
+
 ```{r}
 library(readr)
 library(rpart)    			   
@@ -40,7 +42,6 @@ cp_corte <- 0.0024877
 arbol <- prune(spam_completo, cp = cp_corte)
 prp(arbol, type=4, extra=4)
 ```
-
 
 
 
@@ -81,4 +82,13 @@ perf_r <- performance(pred_r, measure = 'sens', x.measure = 'fpr')
 plot(perf_r)
 ```
 
+### Árboles de regresión.
 
+```{r}
+library(MASS)
+data(Boston)
+head(Boston)
+mod_boston <- rpart(medv ~ ., data = Boston, control = completo)
+printcp(mod_boston)
+prp(prune(mod_boston, cp=0.015), type=4)
+```

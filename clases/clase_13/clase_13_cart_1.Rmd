@@ -57,7 +57,7 @@ prp(arbol_2, type = 4, extra = 104)
 
 
 ```{r}
-arbol_3 <- prune(spam_completo, cp=0.02)
+arbol_3 <- prune(spam_completo, cp=0.01)
 prp(arbol_3, type = 4, extra = 104)
 ```
 
