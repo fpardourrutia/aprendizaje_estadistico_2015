@@ -16,7 +16,7 @@ library(rpart)
 library(rpart.plot)
 library(ElemStatLearn)
 set.seed(22162)
-ind_train <- sample(1:nrow(spam), 500)
+ind_train <- sample(1:nrow(spam), 300)
 train <- spam[ind_train,]
 test <- spam[-ind_train,]
 B <- 800
@@ -34,10 +34,12 @@ arboles <- lapply(1:B, function(i){
 
 ```
 
-Podemos ver parte de los primeros dos árboles:
+Podemos ver parte de los primeros tres árboles:
 ```{r}
 prp(arboles[[1]], type=4, extra=4)
 prp(arboles[[2]], type=4, extra=4)
+prp(arboles[[3]], type=4, extra=4)
+
 ```
 
 Y hacemos predicciones:
@@ -51,9 +53,15 @@ preds <- lapply(1:length(arboles), function(i){
 head(preds)
 ```
 
+Nótese como las variables utilizadas y la estructura de los árboles es
+diferente para cada replicación bootstrap. Esto es por el proceso inestable de
+construcción de los árboles. Cuando observamos esta variabilidad, bagging
+puede ayudar considerablemente en la predicción.
+
 Finalmente evaluamos con la muestra de prueba. Nótese que
-el predictor del bagging de árboles se hace por mayoría de votos
-de los árboles integrantes:
+el predictor de bagging de árboles se hace por mayoría de votos
+de los árboles integrantes, y es un modelo más complejo que un sólo árbol (tenemos
+que guardar la estructura de los 800 árboles construidos):
 
 ```{r}
 preds_agg <- preds %>% group_by(indice) %>%
