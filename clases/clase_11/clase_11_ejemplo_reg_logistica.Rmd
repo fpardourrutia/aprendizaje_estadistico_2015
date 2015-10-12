@@ -26,17 +26,17 @@ Aquí está una descripción de las variables:
 
 VARIABLE DESCRIPTIONS:
 
-survival        Survival
+->survival        Survival
                 (0 = No; 1 = Yes)
                 
-pclass          Passenger Class
+->pclass          Passenger Class
                 (1 = 1st; 2 = 2nd; 3 = 3rd)
                 
 name            Name
 
-sex             Sex
+->sex             Sex
 
-age             Age
+->age             Age
 
 sibsp           Number of Siblings/Spouses Aboard
 
@@ -44,7 +44,7 @@ parch           Number of Parents/Children Aboard
 
 ticket          Ticket Number
 
-fare            Passenger Fare
+->fare            Passenger Fare
 
 cabin           Cabin
 
@@ -87,7 +87,7 @@ table(titanic$age_cat_na)
 
 Creamos una variable dummy para `Sex` y ajustamos un modelo:
 
-
+<!--Se tendrán dos probas estimadas únicamente, para hombres y para mujeres-->
 ```{r}
 library(arm)
 titanic$sex_ind <- as.numeric(titanic$Sex == 'male')
@@ -121,6 +121,9 @@ mod_2 <- bayesglm(Survived ~ Sex + age_cat_na + class ,
                   data = titanic, family = 'binomial')
 display(mod_2)
 ```
+<!--null deviance es la devianza del modelo sin parámetros, que predice
+la moda de "Survived" para cada observación. Entre mayor sea la diferencia
+entre residual deviance y null deviance, más información aportan las X's.-->
 
 Podemos graficar las probabilidades:
 
@@ -134,7 +137,7 @@ head(pred_grid)
 ```
 
 Por ejemplo, vamos a reconstruir manualmente la primera de las probabilidades de esta tabla. Tomamos los coeficientes correspondientes de la tabla del modelo:
-
+<!-- e^x/(1+e^x) = 1/(1+e^(-x))-->
 ```{r}
 invlogit(3.98-2.60-1.59-2.13)
 ```
@@ -152,10 +155,26 @@ ggplot(filter(pred_grid, age_cat_na!='Unknown'),
                       group = class)) + geom_point() + geom_line() +
   facet_wrap(~Sex)
 ```
+<!-- el comportamiento de las gráficas es parecido (todas descienden si aumentamos
+edad o todas ascienden si aumentamos clase), porque no metimos interacciones.
+Si metemos interacciones, podemos modelar comportamientos más específicos para
+cada combinación de variables.
+
+El comportamiento no es exactamente igual puesto que se le aplica el invlogit a la
+suma-->
 
 ¿Cómo podemos verificar la calidad de nuestros modelos? Hay varias 
 opciones, pero una que es útil es la gráfica de calibración:
 
+<!--Supongamos que X_i ~ Be(p), X_i iid.entonces sabemos que el estimador de máxima verosimilitud de p es #aciertos/total
+ahora, la varianza de dicho estimador es pq/n (simplemente calcularla), y el estimador de esta varianza es p^(1-p^)/n-->
+
+<!--En la gráfica de calibración se agrupan las Yi's por probabilidad de éxito, y se comparan probabilidad predicha % (de acuerdo al modelo),
+con el estimador muestral de dicha probabilidad, suponiendo que es correcta para las Y's (para cada intervalo de probabilidad: número de éxitos
+de las Y's/total de Y's en el intervalo). Se añaden intervalos de confianza para el segundo valor.
+
+Notar que este procedimiento es válido si se supone que las respuestas de los individuos son independientes.
+-->
 ```{r}
 library(caret)
 obs_prob <- data_frame(Survived= factor(titanic$Survived, levels=c(1,0)),
@@ -175,7 +194,7 @@ el punto medio de estos intervalos). En el eje vertical calculamos el porcentaje
 de vista, el ajuste es bueno cuando los puntos son consistentes la recta indentidad.
 
 Cuando vemos desajustes, podemos intentar con modelos más complejos, por ejemplo, incluyendo interacciones. Por ejemplo, podemos empezar
-agregando la interacción de sexo y edad:
+agregando las interacciones entre las 3 posibles variables:
 
 
 ```{r, fig.width=10}
@@ -190,7 +209,7 @@ ggplot(pred_grid,
 ```
 
 Ojo: es mejor poner intervalos en estas gráficas, por ejemplo usando
-bootstrap.
+bootstrap. <!--ya que se ven un poco ruidosas-->
 
 ```{r}
 obs_prob <- data_frame(Survived= factor(titanic$Survived, levels=c(1,0)),
@@ -223,7 +242,7 @@ Usamos algunas de las interacciones que encontramos interesantes en el modelo an
 
 ```{r}
 library(glmnet)
-x_train <- model.matrix(~sex_ind + class + age_cat_na + sex_ind:class +
+x_train <- model.matrix(~ sex_ind + class + age_cat_na + sex_ind:class +
                     sex_ind:age_cat_na + class:age_cat_na + 
                     Fare + Embarked+SibSp+Parch, data = train)
 head(x_train)
@@ -236,7 +255,7 @@ coef(net_1)
 Y ahora probamos:
 
 ```{r}
-x_test <- model.matrix(~sex_ind + class + age_cat_na + sex_ind:class +
+x_test <- model.matrix(~ sex_ind + class + age_cat_na + sex_ind:class +
                     sex_ind:age_cat_na + class:age_cat_na + 
                     Fare + Embarked+SibSp+Parch, data = test)
 probs <- predict(net_1, newx = x_test, type='response')
@@ -254,7 +273,7 @@ prop.table(tab_1)
 ### Nota
 
 La validación cruzada también puede hacerse con tasa de incorrectos
-en lugar de devianza binomail, aunque para seleccionar modelos
+en lugar de devianza binomial, aunque para seleccionar modelos
 generalmente preferimos la devianza:
 
 ```{r}

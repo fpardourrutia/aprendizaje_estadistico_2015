@@ -13,9 +13,7 @@ shinyUI(bootstrapPage(
 verbatimTextOutput("rss"),
   plotOutput(outputId = "main_plot", height = "200px"),
   plotOutput(outputId = "contribucion.devianza", height = "200px"),
-
-
-    plotOutput(outputId = "contour", height = "200px")
+  plotOutput(outputId = "contour", height = "200px")
 
 
 ))

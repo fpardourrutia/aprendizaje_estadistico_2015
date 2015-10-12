@@ -89,7 +89,7 @@ plot(mod_reg)
 coef(mod_reg, s = 'lambda.1se')
 ```
 
-Vemos que hay tres juegos de coeficientes, que corresponden a las tres posibles clases. Asegúrate de que dada un renglón de la matriz 
+Vemos que hay tres juegos de coeficientes, que corresponden a las tres posibles clases. Asegúrate de que dada un renglón de la matriz #falta incluir algo...
 
 
 ```{r}
