@@ -16,17 +16,17 @@ library(rpart)
 library(rpart.plot)
 library(ElemStatLearn)
 set.seed(22162)
-ind_train <- sample(1:nrow(spam), 300)
+ind_train <- sample(1:nrow(spam), 500)
 train <- spam[ind_train,]
 test <- spam[-ind_train,]
-B <- 800
+B <- 400
 ```
 
 Primero construimos `r B` muestras bootstrap de los datos de entrenamiento,
 y ajustamos un árbol a cada una de esas muestras:
 
 ```{r}
-control <- rpart.control(maxdepth=5, xval=2, cp=0)
+control <- rpart.control(maxdepth=10, xval=2, cp=0)
 arboles <- lapply(1:B, function(i){
   train_boot <- train[sample(1:nrow(train), nrow(train), replace = T), ]
   rpart(spam ~., data=train_boot, control=control)
@@ -85,5 +85,16 @@ sqrt(p_arbol*(1-p_arbol)/nrow(test))
 
 Nota: experimenta con tamaños de muestra distintas y profundidades de árboles distintas. La mejora puede ser muy chica o más considerable.
 
+### Bosques aleatorios
 
+Podemos también escoger introducir variabilidad en el proceso de crecimiento de los árboles. En bosques aleatorios al buscar cortes en cada nodo tomamos una muestra de $m$ variables para buscar el mejor corte. Cada vez que llegamos a un nodo nuevo seleccionamos $m$ nuevas variables al azar. Esto, como veremos, tiene el efecto de decorrelacionar los árboles y reducir la varianza del predictor final.
+Por ejemplo, aquí tomamos $m=4$ variables de las
+57 posibles:
 
+```{r}
+set.seed(901)
+library(randomForest)
+rf <- randomForest(spam ~.,  data = train, mtry = 4, ntree = B)
+pred_rf <- predict(rf, test)
+mean(pred_rf == test$spam)
+```
