@@ -1,0 +1,94 @@
+---
+title: "CART, parte 2"
+author: "Felipe González"
+date: Otoño 2015
+output: 
+  html_document: 
+    theme: united
+---
+
+### Árboles de clasificación
+
+```{r}
+library(readr)
+library(rpart)    			   
+library(rpart.plot)
+
+entrena <- read_csv('datos/spam_entrena.csv', 
+                         col_types = paste0(c('i', rep('d', 57),'c'), collapse=''))
+prueba <- read_csv('datos/spam_prueba.csv',
+                        col_types = paste0(c('i', rep('d', 57),'c'), collapse=''))
+head(entrena)
+```
+
+```{r, dev='pdf'}
+set.seed(22)
+completo <- rpart.control(cp = 0, minsplit = 5, minbucket = 1, xval = 10, maxdepth = 30)
+spam_completo <- rpart(spam ~ ., data = entrena, method = "class", control = completo)
+```
+
+Ahora tenemos qué decidir el parámetro de costo-complejidad, y podar el árbol
+
+```{r}
+plotcp(spam_completo)
+printcp(spam_completo)
+```
+
+Escogemos el parámetro con mínimo error de validación cruzada (xerror), o el más
+simple a 1 error estándar de este mínimo (en este caso, el de 27 cortes):
+
+```{r, dev='pdf'}
+cp_corte <- 0.0024877
+arbol <- prune(spam_completo, cp = cp_corte)
+prp(arbol, type=4, extra=4)
+```
+
+
+
+Podemos tambien examinar el árbol imprimiendo los cortes.
+
+```{r}
+arbol
+```
+
+En la interpretación es importante tener cuidado en cuanto a la importancia de las variables. Que algunas variables no aparezcan no quiere decir que no tengan información predictiva: puede ser que fueron enmascaradas por otras. El orden de aparición de las variables en el árbol también es difícil de interpretar por la variabilidad en el proceso de construcción de los árboles.
+
+
+Finalmente evaluamos con la muestra de prueba:
+```{r}
+prop.table(table(prueba$spam))
+preds <- predict(arbol, prueba, type='prob')
+pred_spam <- preds[,2]
+```
+La tasa de clasificación incorrecta:
+```{r}
+mean((pred_spam > 0.5) != (prueba$spam==1))
+```
+
+La matriz de confusión y especificidad-sensibilidad:
+
+```{r}
+tab_1 <- table(pred_spam > 0.5, prueba$spam)
+tab_1
+prop.table(tab_1, 2)
+```
+
+Y finalmente la curva ROC:
+
+```{r}
+library(ROCR)
+pred_r <- prediction(pred_spam, prueba$spam)
+perf_r <- performance(pred_r, measure = 'sens', x.measure = 'fpr')
+plot(perf_r)
+```
+
+### Árboles de regresión.
+
+```{r}
+library(MASS)
+data(Boston)
+head(Boston)
+mod_boston <- rpart(medv ~ ., data = Boston, control = completo)
+printcp(mod_boston)
+prp(prune(mod_boston, cp=0.015), type=4)
+```

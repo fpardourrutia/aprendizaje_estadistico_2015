@@ -1,0 +1,100 @@
+---
+title: "Bagging de predictores"
+author: "Felipe González"
+date: Otoño 2015
+output: 
+  html_document: 
+    theme: united
+---
+
+Usamos los datos de spam:
+
+```{r, warning=FALSE,message=FALSE}
+library(ggplot2)
+library(dplyr)
+library(rpart)
+library(rpart.plot)
+library(ElemStatLearn)
+set.seed(22162)
+ind_train <- sample(1:nrow(spam), 500)
+train <- spam[ind_train,]
+test <- spam[-ind_train,]
+B <- 400
+```
+
+Primero construimos `r B` muestras bootstrap de los datos de entrenamiento,
+y ajustamos un árbol a cada una de esas muestras:
+
+```{r}
+control <- rpart.control(maxdepth=10, xval=2, cp=0)
+arboles <- lapply(1:B, function(i){
+  train_boot <- train[sample(1:nrow(train), nrow(train), replace = T), ]
+  rpart(spam ~., data=train_boot, control=control)
+})
+
+```
+
+Podemos ver parte de los primeros tres árboles:
+```{r}
+prp(arboles[[1]], type=4, extra=4)
+prp(arboles[[2]], type=4, extra=4)
+prp(arboles[[3]], type=4, extra=4)
+
+```
+
+Y hacemos predicciones:
+
+```{r}
+preds <- lapply(1:length(arboles), function(i){ 
+  data_frame(rep = i, indice = 1:nrow(test),
+             obs = test$spam, preds=predict(arboles[[i]], newdata = test, type='class'))
+  }) %>%
+  bind_rows()
+head(preds)
+```
+
+Nótese como las variables utilizadas y la estructura de los árboles es
+diferente para cada replicación bootstrap. Esto es por el proceso inestable de
+construcción de los árboles. Cuando observamos esta variabilidad, bagging
+puede ayudar considerablemente en la predicción.
+
+Finalmente evaluamos con la muestra de prueba. Nótese que
+el predictor de bagging de árboles se hace por mayoría de votos
+de los árboles integrantes, y es un modelo más complejo que un sólo árbol (tenemos
+que guardar la estructura de los 800 árboles construidos):
+
+```{r}
+preds_agg <- preds %>% group_by(indice) %>%
+  summarise(pred_bag = names(sort(table(preds))[2]), obs=obs[1])
+p_agg <- sum(diag(table(preds_agg$pred_bag, test$spam)))/nrow(test)
+p_agg
+```
+con error estándar
+```{r}
+sqrt(p_agg*(1-p_agg)/nrow(test))
+```
+
+
+Mientras que los errores de los árboles individuales son:
+```{r}
+arbol <- rpart(spam ~., data=train, control=control)
+p_arbol <- sum(diag(table(predict(arbol, newdata = test, type='class'), test$spam)))/nrow(test)
+p_arbol
+sqrt(p_arbol*(1-p_arbol)/nrow(test))
+```
+
+Nota: experimenta con tamaños de muestra distintas y profundidades de árboles distintas. La mejora puede ser muy chica o más considerable.
+
+### Bosques aleatorios
+
+Podemos también escoger introducir variabilidad en el proceso de crecimiento de los árboles. En bosques aleatorios al buscar cortes en cada nodo tomamos una muestra de $m$ variables para buscar el mejor corte. Cada vez que llegamos a un nodo nuevo seleccionamos $m$ nuevas variables al azar. Esto, como veremos, tiene el efecto de decorrelacionar los árboles y reducir la varianza del predictor final.
+Por ejemplo, aquí tomamos $m=4$ variables de las
+57 posibles:
+
+```{r}
+set.seed(901)
+library(randomForest)
+rf <- randomForest(spam ~.,  data = train, mtry = 4, ntree = B)
+pred_rf <- predict(rf, test)
+mean(pred_rf == test$spam)
+```
