@@ -115,7 +115,7 @@ sd(reps_corr)
 Podemos también obtener error estándar para estimadores de coeficientes de regresión. En nuestro ejemplo anterior, por ejemplo, tenemos
 
 ```{r}
-mod <- lm(mpg~hp, data=dat)
+mod <- lm(log(mpg)~log(hp), data = dat)
 mod
 ```
 
@@ -127,7 +127,7 @@ summary(mod)
 Ahora lo hacemos con bootstrap. Ajustamos el modelo repetidamente a muestras bootstrap:
 
 ```{r}
-modelos_boot <- lapply(reps_boot, function(df) { lm(mpg~hp, data=df) })
+modelos_boot <- lapply(reps_boot, function(df) { lm(log(mpg)~log(hp), data=df) })
 modelos_boot[1:5]
 ```
 
@@ -144,7 +144,7 @@ Y calculamos error estándar:
 sd(hp_boot)
 ```
 
-Este error estándar es ligeramente más alto que el que calculamos arriba con `summary`. ¿Por qué? (piensa en X fija o aleatoria).
+
 
 
 ### Error estándar y bootstrap: splines de regresión
@@ -159,7 +159,7 @@ reps_boot_ind <- lapply(1:length(reps_boot), function(i){
   dat$rep <- i
   dat})
 dat_boot <- bind_rows(reps_boot_ind[1:500])
-ggplot(dat_boot, aes(x = hp, y = mpg)) +
+ggplot(dat_boot, aes(x = log(hp), y = log(mpg))) +
   geom_smooth(aes(group = rep), 
               method = 'lm',formula = y ~ ns(x, df = 3),
               se = FALSE, fullrange=T,
