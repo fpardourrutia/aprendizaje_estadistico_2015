@@ -48,3 +48,60 @@ ggplot(sonar_m, aes(x=vars, y=valor, colour=factor(V61), group=id))+
    geom_line()
  
 ```
+
+Haremos una implementación a mano de adaboost (normalmente es mejor usar un paquete de R, como gbm que veremos después):
+
+
+```{r}
+
+
+M <- 150
+N <- nrow(sonar_entrena)
+err <- rep(NA,M)
+incorrectos_entrena <- rep(NA,M)
+incorrectos_prueba <- rep(NA,M)
+alpha <- rep(NA,M)
+#pesos<-matrix(NA,nrow=N,ncol=M)
+pesos <- rep(1, N)
+#pesos[,1]<-pesos_temp
+arboles <- list(rep(NA,M))
+y <- sonar_entrena$V61
+y_prueba <- sonar_prueba$V61
+f_m <- 0
+f_prueba_m <- 0
+
+for(m in 1:M){
+    # Ajustar árbol con pesos
+    arboles[[m]] <- rpart(V61~., data = sonar_entrena, weights = pesos, method = "class",
+                        control = rpart.control(maxdepth=2))
+    
+    # Cálculo de error ponderado y peso alfa
+    g_m <- as.numeric(as.character(predict(arboles[[m]],type="class")))
+    pesos <- pesos/sum(pesos)
+    err[m] <- sum(pesos*(y*g_m < 0))
+    alpha[m] <- log((1-err[m])/err[m])
+    # Actualizar predictor
+    f_m <- f_m + alpha[m]*g_m
+    # Actualizar pesos
+    pesos <- pesos * exp(alpha[m]*(y*g_m < 0))
+    
+    # Predicción sobre muestra de prueba
+    g_prueba_m <- as.numeric(as.character(predict(arboles[[m]], newdata=sonar_prueba, type="class")))
+    f_prueba_m <- f_prueba_m + alpha[m]*g_prueba_m
+    
+    # Cálculo de proporción de incorrectos
+    incorrectos_entrena[m] <- mean(f_m*y<0)
+    incorrectos_prueba[m] <- mean(f_prueba_m*y_prueba<0)
+}
+```
+
+Ahora graficamos el error de entrenamiento junto con el error de prueba.
+
+```{r} 
+plot(incorrectos_prueba,ylim=c(0,0.50),type="l",col="red", xlab='Número de árboles')
+lines(incorrectos_entrena)
+
+```
+
+Nota que el error de prueba sigue disminuyendo aún cuando 
+el error de entrenamiento es 0. ¿Puedes explicar esto?
