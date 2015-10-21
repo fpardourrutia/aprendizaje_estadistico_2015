@@ -23,7 +23,7 @@ nrow(zip.train)
 dim(zip.train)
 set.seed(28001)
 train_full <- data.frame(zip.train)
-train <- train_full %>% sample_n(2000)  ## para que corra más rápido el documento - puedes correrlo después con todos los datos.
+train <- train_full #%>% sample_n(2000)  ## para que corra más rápido el documento - puedes correrlo después con todos los datos.
 test <- data.frame(zip.train)
 train$digito <- factor(train$X1)
 test$digito <- factor(test$X1)

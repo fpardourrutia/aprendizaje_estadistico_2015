@@ -73,7 +73,7 @@ Compárese con la estimación usual:
 s/sqrt(n)
 ```
 
-Si corregimos
+Si corregimos (para dividir entre $n$ eb lugar de entre $n-1$)
 
 ```{r}
 sqrt((n-1)/n)*s/sqrt(n)
