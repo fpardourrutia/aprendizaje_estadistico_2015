@@ -1,0 +1,156 @@
+---
+title: "Redes neuronales: introducción"
+author: "Felipe González"
+date: Otoño 2015
+output: 
+  html_document: 
+    theme: united
+---
+
+```{r, message=FALSE, warning=FALSE}
+library(knitr)
+library(ggplot2)
+library(dplyr)
+library(tidyr)
+```
+
+Consideramos el siguiente modelo simple (no lineal):
+$$p(x) = h(2-3x^2).$$
+
+En la siguiente gráfica, mostramos la $p(x)$ verdadera y 30 datos simulados para entrenar:
+
+
+```{r, fig.width=4, fig.height=3}
+h <- function(x){
+    exp(x)/(1+exp(x))
+}
+x <- seq(-2,2,0.1)
+p <- h(2-3*x^2) #probabilidad condicional de clase 1 (vs. 0)
+set.seed(2805)
+x_1 <- runif(30, -2, 2)
+g_1 <- rbinom(30, 1, h(2-3*x_1^2))
+datos <- data.frame(x_1,g_1)
+dat_p <- data.frame(x,p)
+g <- qplot(x,p, geom='line')
+g + geom_point(data = datos, aes(x=x_1,y=g_1))
+```
+
+Es claro que usando regresión logística en la entrada $x$ no es posible ajustar esta curva (aunque podríamos ajustarla si incluyéramos el término $x^2$ en el modelo).
+
+Intentaremos entonces construir esta $p(x)$ con una red neuronal.
+
+```{r, fig.width=4, fig.height=3, echo=FALSE}
+library(DiagrammeR)
+grViz("
+digraph {
+  graph [rankdir = LR]
+  edge [color = gray]
+  node [shape = circle]
+  x; 
+  a_1 [color=purple]
+  a_2 [color=purple]
+  p [color = red]
+  x->a_1; x->a_2              
+  a_1->p 
+  a_2->p 
+}
+")
+```
+
+
+```{r, fig.width=5, fig.height=3.5}
+a_1 <- h( 1 + 2*x)  # 2(x+1/2)
+a_2 <- h(-1 + 2*x)  # 2(x-1/2) # una es una versión desplazada de otra.
+dat_a <- data.frame(x=x, a_1=a_1, a_2=a_2)
+dat_a2 <- dat_a %>% gather(variable, value, a_1:a_2)
+ggplot(dat_a2, aes(x=x, y=value, colour=variable, group=variable)) + geom_line()
+dat_a <- data.frame(x=x, a_1=-4+12*a_1, a_2=-12*a_2, suma=-4+12*a_1-12*a_2)
+dat_a2 <- dat_a %>% gather(variable, value, a_1:suma)
+ggplot(dat_a2, aes(x=x, y=value, colour=variable, group=variable)) + geom_line()
+
+
+
+dat_2 <- data.frame(x, p2=h(-4 + 12*a_1 - 12*a_2))
+ggplot(dat_2, aes(x=x, y=p2)) + geom_line()+
+geom_line(data=dat_p, aes(x=x,y=p), col='red') +ylim(c(0,1))+
+   geom_point(data = datos, aes(x=x_1,y=g_1))
+
+```
+
+
+```{r, fig.width=4, fig.height=3}
+## esta función calcula los valores de cada nodo en toda la red,
+## para cada entrada
+feed.fow <- function(beta, x){
+  a.1 <- h(beta[1] + beta[2]*x) # calcula variable 1 de capa oculta
+  a.2 <- h(beta[3] + beta[4]*x) # calcula variable 2 de capa oculta
+  p <- h(beta[5]+beta[6]*a.1 + beta[7]*a.2) # calcula capa de salida
+  p
+}
+
+
+
+
+devianza.func <- function(x, g){
+    # esta función es una fábrica de funciones
+   devianza <- function(beta){
+         p <- feed.fow(beta, x)
+      - 2 * mean(g*log(p) + (1-g)*log(1-p))
+   }
+  devianza
+}
+```
+
+```{r}
+dev <- devianza.func(x_1, g_1) # crea función dev
+## ahora dev toma solamente los 7 parámetros beta:
+dev(c(0,0,0,0,0,0,0))
+dev(rnorm(7))
+```
+
+```{r}
+set.seed(5)
+salida <- optim(rnorm(7), dev, method='BFGS') # inicializar al azar punto inicial
+salida
+beta <- salida$par
+
+## hacer feed forward con beta encontroados
+p_2 <- feed.fow(beta, x)
+dat_2 <- data.frame(x, p_2=p_2)
+ggplot(dat_2, aes(x=x, y=p_2)) + geom_line()+
+geom_line(data=dat_p, aes(x=x,y=p), col='red') +ylim(c(0,1))+
+   geom_point(data = datos, aes(x=x_1,y=g_1))
+
+
+
+beta
+```
+
+```{r}
+devianza.reg <- function(x, g, lambda){
+    # esta función es una fábrica de funciones
+   devianza <- function(beta){
+         p <- feed.fow(beta, x)
+      - 2 * mean(g*log(p) + (1-g)*log(1-p)) + lambda*sum(beta^2)
+   }
+  devianza
+}
+
+
+
+dev.r <- devianza.reg(x_1, g_1, 0.0005) # crea función dev
+set.seed(5)
+salida <- optim(rnorm(7), dev.r, method='BFGS') # inicializar al azar punto inicial
+salida
+beta <- salida$par
+dev(beta)
+```
+```{r, fig.width=4, fig.height=3}
+p_2 <- feed.fow(beta, x)
+dat.2 <- data.frame(x, p_2=p_2)
+ggplot(dat.2, aes(x=x, y=p_2)) + geom_line()+
+geom_line(data=dat_p, aes(x=x,y=p), col='red') +ylim(c(0,1))+
+   geom_point(data = datos, aes(x=x_1,y=g_1))
+
+
+```

@@ -1,0 +1,320 @@
+---
+title: "Bosques aleatorios"
+author: "FG"
+date: "October 13, 2015"
+output: html_document
+---
+
+```{r}
+library(dplyr)
+library(ggplot2)
+library(readr)
+library(tidyr)
+cbPalette <- c("#000000", "#E69F00", "#56B4E9", "#009E73", "#F0E442", "#0072B2", "#D55E00", 
+  	"#CC79A7", '#000000' ,'#CCCC99')
+col_ptos <-   scale_colour_manual(values=cbPalette)
+dat <- read_csv('./data/train.csv')
+```
+
+
+### Forest cover
+
+
+Un resumen de los datos que trataremos:
+
+The Forest CoverType dataset
+
+Predicting forest cover type from cartographic variables only
+	(no remotely sensed data).  The actual forest cover type for
+	a given observation (30 x 30 meter cell) was determined from
+	US Forest Service (USFS) Region 2 Resource Information System 
+	(RIS) data.  Independent variables were derived from data
+	originally obtained from US Geological Survey (USGS) and
+	USFS data.  Data is in raw form (not scaled) and contains
+	binary (0 or 1) columns of data for qualitative independent
+	variables (wilderness areas and soil types).
+
+	This study area includes four wilderness areas located in the
+	Roosevelt National Forest of northern Colorado.  These areas
+	represent forests with minimal human-caused disturbances,
+	so that existing forest cover types are more a result of 
+	ecological processes rather than forest management practices.
+
+	Number of Attributes:	12 measures, but 54 columns of data
+				(10 quantitative variables, 4 binary
+				wilderness areas and 40 binary
+				soil type variables)
+
+
+	Attribute information:
+
+Given is the attribute name, attribute type, the measurement unit and
+a brief description.  The forest cover type is the classification 
+problem.  The order of this listing corresponds to the order of 
+numerals along the rows of the database.
+
+Name                                     Data Type    Measurement                       Description
+
+Elevation                               quantitative    meters                       Elevation in meters
+Aspect                                  quantitative    azimuth                      Aspect in degrees azimuth
+Slope                                   quantitative    degrees                      Slope in degrees
+Horizontal_Distance_To_Hydrology        quantitative    meters                       Horz Dist to nearest surface water features
+Vertical_Distance_To_Hydrology          quantitative    meters                       Vert Dist to nearest surface water features
+Horizontal_Distance_To_Roadways         quantitative    meters                       Horz Dist to nearest roadway
+Hillshade_9am                           quantitative    0 to 255 index               Hillshade index at 9am, summer solstice
+Hillshade_Noon                          quantitative    0 to 255 index               Hillshade index at noon, summer soltice
+Hillshade_3pm                           quantitative    0 to 255 index               Hillshade index at 3pm, summer solstice
+Horizontal_Distance_To_Fire_Points      quantitative    meters                       Horz Dist to nearest wildfire ignition points
+Wilderness_Area (4 binary columns)      qualitative     0 (absence) or 1 (presence)  Wilderness area designation
+Soil_Type (40 binary columns)           qualitative     0 (absence) or 1 (presence)  Soil Type designation
+Cover_Type (7 types)                    integer         1 to 7                       Forest Cover Type designation
+
+
+Code Designations:
+
+Wilderness Areas:  	1 -- Rawah Wilderness Area
+                        2 -- Neota Wilderness Area
+                        3 -- Comanche Peak Wilderness Area
+                        4 -- Cache la Poudre Wilderness Area
+
+
+Forest Cover Type Classes:	1 -- Spruce/Fir
+                                2 -- Lodgepole Pine
+                                3 -- Ponderosa Pine
+                                4 -- Cottonwood/Willow
+                                5 -- Aspen
+                                6 -- Douglas-fir
+                                7 -- Krummholz
+
+
+8.  Basic Summary Statistics for quantitative variables only
+	(whole dataset -- thanks to Phil Rennert for the summary values):
+
+Name                                    Units             Mean   Std Dev
+Elevation                               meters          2959.36  279.98
+Aspect                                  azimuth          155.65  111.91
+Slope                                   degrees           14.10    7.49
+Horizontal_Distance_To_Hydrology        meters           269.43  212.55
+Vertical_Distance_To_Hydrology          meters            46.42   58.30
+Horizontal_Distance_To_Roadways         meters          2350.15 1559.25
+Hillshade_9am                           0 to 255 index   212.15   26.77
+Hillshade_Noon                          0 to 255 index   223.32   19.77
+Hillshade_3pm                           0 to 255 index   142.53   38.27
+Horizontal_Distance_To_Fire_Points      meters          1980.29 1324.19
+
+
+9.	Missing Attribute Values:  None.
+
+
+10.	Class distribution:
+
+           Number of records of Spruce-Fir:                211840 
+           Number of records of Lodgepole Pine:            283301 
+           Number of records of Ponderosa Pine:             35754 
+           Number of records of Cottonwood/Willow:           2747 
+           Number of records of Aspen:                       9493 
+           Number of records of Douglas-fir:                17367 
+           Number of records of Krummholz:                  20510  
+           Number of records of other:                          0  
+		
+           Total records:                                  581012
+
+
+```{r}
+library(randomForest)
+names(dat)
+table(dat$Cover_Type)
+dat$Cover_Type <- factor(dat$Cover_Type)
+train <- dat %>% dplyr::select(-Id, -contains('Soil_Type'))
+#Convertimos las variables indicadoras wilderness area a una variable categoríca
+train <- train %>% 
+  mutate(wild_area = 1*Wilderness_Area1+2*Wilderness_Area2+3*Wilderness_Area3+4*Wilderness_Area4)
+train$wild_area <- factor(train$wild_area)
+train$Wilderness_Area1 <- NULL
+train$Wilderness_Area2 <- NULL
+train$Wilderness_Area3 <- NULL
+train$Wilderness_Area4 <- NULL
+names(train)
+```
+
+Ajustamos un árbol y observamos el error OOB y la matriz de confusión OOB (nota:
+esta matriz de confusión tiene clases observadas en los renglones y predicciones en las columnas):
+```{r}
+rf <- randomForest(Cover_Type ~., mtry=3, 
+                   data = train, ntree=100, importance = T)
+rf
+```
+
+Y checamos la convergencia del bosque cuando el número de árboles crece
+
+```{r}
+plot(rf)
+```
+
+Nótese que en esta gráfica podemos ver las tasas de error de cada clase. Podemos
+mejorar esta gráfica haciendo:
+```{r}
+err_rate <- rf$err.rate %>% as.data.frame
+err_rate$no_trees <- 1:nrow(err_rate)
+err <- err_rate %>% gather(cat, valor, -no_trees)
+ggplot(err, aes(x=no_trees, y=valor, colour=cat, group=cat)) + geom_line() +
+  col_ptos
+```
+
+
+### Afinación de parámetros
+
+Intentamos variar el número de variables escogidas al azar en cada nodo (mtry). En este caso tenemos 11 variables:
+
+
+```{r}
+mods_rf <- lapply(2:10 , function(m){
+  print(m)
+  rf <- randomForest(Cover_Type ~., mtry = m, data = train, ntree=250)
+  data_frame(mtry = m, n_tree = 1:250, oob = rf$err.rate[,1])
+})
+error_oob <- bind_rows(mods_rf)
+```
+
+```{r}
+ggplot(error_oob, aes(x=n_tree, y=oob, colour=factor(mtry), group=mtry)) + geom_line()
+ggplot(filter(error_oob, n_tree>100), aes(x=n_tree, y=oob, colour=factor(mtry), group=mtry)) + geom_line(size=2)
+ggplot(filter(error_oob, n_tree==250), aes(x=mtry, y=oob))+geom_point() 
+```
+
+Podemos seleccionar nuestro modelo con esta última gráfica. Ajustamos nuestro modelo final, y verificamos convergencia y tasa de error OOB:
+
+```{r}
+rf <- randomForest(Cover_Type ~., mtry = 4, data = train, ntree = 300,
+                   importance = TRUE)
+rf
+plot(rf)
+```
+
+Ahora vamos a estudiar las importancias. Nótese que usamos `scale=F` para interpretar más fácilmente:
+
+
+```{r}
+dat_importance <- importance(rf, scale = F) %>% data.frame %>% round(3)
+dat_importance
+```
+
+Vemos cuánto cae la tasa de correctos para cada clase cuando permutamos cada variable. En la penúltima columna está el resumen sobre todas las clases (cúanto baja la tasa de incorrectos):
+
+```{r}
+dat_importance$variable <- rownames(dat_importance)
+resumen <- dat_importance %>% arrange(desc(MeanDecreaseAccuracy)) %>% 
+  rename(Importance = MeanDecreaseAccuracy) %>%
+  dplyr::select(variable, Importance)
+resumen
+resumen$variable <- reorder(resumen$variable, resumen$Importance, mean)
+ggplot(resumen, aes(x=variable, y=Importance)) + geom_point() +
+  coord_flip()
+```
+
+### Más análisis de importancias
+
+```{r, fig.width=4, fig.height=3}
+#install.packages('rfPermute')
+library(rfPermute)
+set.seed(120)
+train_s <- sample_n(train, 200)
+rf_perm <- rfPermute(Cover_Type ~., mtry = 4, data = train_s, ntree=250,nrep = 50, num.cores = 1)
+rf_imp <- rp.importance(rf_perm)
+rf_imp
+plot(rf_perm, imp.type='MeanDecreaseAccuracy')
+```
+
+```{r}
+plot(rf_imp, type="MeanDecreaseAccuracy")
+```
+
+Donde vemos que la única importancia consistente con el modelo nulo
+son Slope, Vertical_Distance_To_Hidrology, Aspect. Esto puede ser útil cuando
+usamos bosques aleatorios para hacer selección de variables.
+
+
+
+Podemos investigar el efecto de las variables de entrada. Por ejemplo, consideramos dos variables importantes:
+
+```{r}
+dat_graf <- train %>%
+  mutate(elev_cat = cut(Elevation, quantile(Elevation, seq(0,1,0.2)), include.lowest=T)) %>%
+  mutate(roadways_cat = cut(Horizontal_Distance_To_Roadways, quantile(Horizontal_Distance_To_Roadways, seq(0,1,0.25)), include.lowest=T)) %>%
+ dplyr::select(elev_cat, roadways_cat, Cover_Type) %>%
+  group_by(elev_cat,   roadways_cat, Cover_Type) %>%
+  summarise(n = n()) %>%
+  group_by(Cover_Type) %>%
+  mutate(p = prop.table(n)) %>%
+  left_join(data.frame(Cover_Type=as.character(c(1,2,3,4,5,6,7)),
+                       cover = c('Spruce/Fir','Lodgepole Pine','Ponderosa Pine',
+                                 'Cottonwood/Willow','Aspen','Douglas-fir','Krummholz')))
+```
+
+
+```{r}
+ggplot(dat_graf, aes(x=elev_cat, y=p, colour=roadways_cat, group=roadways_cat))+
+  facet_wrap(~cover)+  geom_point() + geom_line()
+```
+
+Y quizá también podríamos ver:
+
+
+```{r}
+dat_graf <- train %>%
+  mutate(elev_cat = cut(Elevation, quantile(Elevation, seq(0,1,0.2)), include.lowest=T)) %>%
+ dplyr::select(elev_cat, wild_area, Cover_Type) %>%
+  group_by(elev_cat,  wild_area, Cover_Type) %>%
+  summarise(n = n()) %>%
+  group_by(Cover_Type) %>%
+  mutate(p = prop.table(n)) %>%
+  left_join(data.frame(Cover_Type=as.character(c(1,2,3,4,5,6,7)),
+                       cover = c('Spruce/Fir','Lodgepole Pine','Ponderosa Pine',
+                                 'Cottonwood/Willow','Aspen','Douglas-fir','Krummholz')))
+```
+
+
+```{r}
+ggplot(dat_graf, aes(x=elev_cat, y=p, colour=wild_area, group=wild_area))+
+  facet_wrap(~cover)+  geom_point() + geom_line()
+```
+
+
+### Gráficas de dependencia parcial
+
+Podemos investigar el efecto que cada variable (o un subconjunto de variables) tiene
+sobre nuestras predicciones considerando las gráficas de dependencia parcial.
+
+Para la clase 1 (las unidades y son logit):
+```{r}
+pp_1 <- partialPlot(rf, train_s %>% data.frame, Elevation, "1")
+```
+
+Nótese la alfombra de deciles de Elevation en el eje x. Hay que tener
+cuidado en la interpretación, especialmente en los extremos donde
+hay pocos datos.
+
+para la clase 2:
+
+```{r}
+pp_2 <- partialPlot(rf, train_s %>% data.frame, Elevation, "2")
+```
+
+Y podemos graficar juntas todas las clases:
+```{r, fig.width=7, fig.height=4}
+pd_elev_list <- lapply(1:7, function(cl){
+  dat <- partialPlot(rf,train_s %>% data.frame, Elevation, as.character(cl), plot=FALSE )
+  data_frame(Elevation = dat$x, y = dat$y, class = cl)
+})
+
+pd_elev <- bind_rows(pd_elev_list)
+ggplot(pd_elev, aes(x=Elevation, y=y, colour=factor(class), group=class)) + geom_line()+col_ptos
+```
+
+Y podemos regresar a probabilidades haciendo:
+```{r,fig.width=7, fig.height=4}
+pd_elev <- pd_elev %>% group_by(Elevation) %>% mutate(p = exp(y)/sum(exp(y)))
+ggplot(pd_elev, aes(x=Elevation, y=p, colour=factor(class), group=class)) + geom_line()+col_ptos
+```
+
+
