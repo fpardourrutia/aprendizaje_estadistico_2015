@@ -3,4 +3,4 @@
 .DS_Store
 *cache
 *files
-datos_concurso_movimiento
+datos/concurso_movimiento
